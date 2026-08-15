@@ -2584,8 +2584,12 @@ void CvUnit::kill(bool bDelay, PlayerTypes ePlayer /*= NO_PLAYER*/)
 		}
 		else if (IsLinked())
 		{
-			CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-			pLinkedLeader->SetIsLinkedLeader(false);
+			CvUnit* pLinkedLeader = GetLinkedLeaderUnit();
+			if (pLinkedLeader != NULL)
+			{
+				pLinkedLeader->SetIsLinkedLeader(false);
+			}
+			SetIsLinked(false);
 		}
 	}
 
@@ -4514,6 +4518,14 @@ bool CvUnit::canDoCommand(CommandTypes eCommand, int iData1, int iData2, bool bT
 		return true;
 		break;
 
+	case COMMAND_LINK_UNITS:
+		return MOD_LINKED_MOVEMENT && CanLinkUnits();
+		break;
+
+	case COMMAND_UNLINK_UNITS:
+		return MOD_LINKED_MOVEMENT && IsLinked();
+		break;
+
 	default:
 		ASSERT(false);
 		break;
@@ -4579,6 +4591,16 @@ void CvUnit::doCommand(CommandTypes eCommand, int iData1, int iData2)
 
 		case COMMAND_HOTKEY:
 			setHotKeyNumber(iData1);
+			break;
+
+		case COMMAND_LINK_UNITS:
+			LinkUnits();
+			DLLUI->setDirty(UnitInfo_DIRTY_BIT, true);
+			break;
+
+		case COMMAND_UNLINK_UNITS:
+			UnlinkUnits();
+			DLLUI->setDirty(UnitInfo_DIRTY_BIT, true);
 			break;
 
 		default:
@@ -5465,6 +5487,89 @@ void CvUnit::move(CvPlot& targetPlot, bool bShow, bool bNoMovementCost)
 	if (pOldPlot == &targetPlot)
 		return;
 
+	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader()) // moving the whole stack, one plot at a time
+	{
+		vector<CvUnit*> LinkedUnits;
+		if (!TryCollectLinkedFollowers(LinkedUnits, true))
+		{
+			return;
+		}
+		for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
+		{
+			CvUnit* pLinkedUnit = LinkedUnits[iI];
+			if (!pLinkedUnit->canMoveInto(targetPlot, CvUnit::MOVEFLAG_DESTINATION))
+			{
+				return;
+			}
+		}
+
+		//will never be more than we have left!
+		int iMoveCost = bNoMovementCost ? 0 : targetPlot.movementCost(this, plot(), getMoves());
+
+		// we need to get our dis/embarking on
+		bool bChangeEmbarkedState = CanEverEmbark() && (targetPlot.needsEmbarkation(this) != pOldPlot->needsEmbarkation(this));
+		if (bChangeEmbarkedState)
+		{
+			if(isEmbarked() && !targetPlot.needsEmbarkation(this)) // moving from water to the land
+			{
+				// If we have some queued moves, execute them now, so that the disembark is done at the proper location visually
+				PublishQueuedVisualizationMoves();
+
+				disembark(pOldPlot);
+			}
+			else if(!isEmbarked() && targetPlot.needsEmbarkation(this))  // moving from land to the water
+			{
+				// If we have some queued moves, execute them now, so that the embark is done at the proper location visually
+				PublishQueuedVisualizationMoves();
+
+				embark(pOldPlot);
+			}
+		}
+
+		if (IsLinkedLeader()) // moving the whole stack, one plot at a time
+		{
+			vector<CvUnit*> LinkedUnitsBeforeLeader;
+			vector<CvUnit*> LinkedUnitsAfterLeader;
+			for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
+			{
+				CvUnit* pLinkedUnit = LinkedUnits[iI];
+				if (IsCivilianUnit() && !pLinkedUnit->IsCivilianUnit())
+				{
+					LinkedUnitsBeforeLeader.push_back(pLinkedUnit);
+				}
+				else
+				{
+					LinkedUnitsAfterLeader.push_back(pLinkedUnit);
+				}
+			}
+
+			for (int iI = 0; iI < (int)LinkedUnitsBeforeLeader.size(); iI++)
+			{
+				CvUnit* pLinkedUnit = LinkedUnitsBeforeLeader[iI];
+				pLinkedUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), targetPlot.getX(), targetPlot.getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_KEEP_LINK);
+			}
+
+			setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
+
+			for (int iI = 0; iI < (int)LinkedUnitsAfterLeader.size(); iI++)
+			{
+				CvUnit* pLinkedUnit = LinkedUnitsAfterLeader[iI];
+				pLinkedUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), targetPlot.getX(), targetPlot.getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_KEEP_LINK);
+			}
+		}
+		//important, first do the move, then subtract the cost
+		//that way setXY can tell whether it's the initial move this turn
+		else
+		{
+			setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
+		}
+
+		if (!targetPlot.IsRestoreMoves())
+			changeMoves(-iMoveCost);
+
+		return;
+	}
+
 	//will never be more than we have left!
 	int iMoveCost = bNoMovementCost ? 0 : targetPlot.movementCost(this, plot(), getMoves());
 
@@ -5488,39 +5593,9 @@ void CvUnit::move(CvPlot& targetPlot, bool bShow, bool bNoMovementCost)
 		}
 	}
 
-	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader()) // moving the whole stack, one plot at a time
-	{
-		UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-		bool bCanDoLinkedMove = true;
-		vector<CvUnit*> LinkedUnits;
-		for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
-		{
-			CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
-			if (!pLinkedUnit->canMoveInto(targetPlot, CvUnit::MOVEFLAG_DESTINATION)) {
-				bCanDoLinkedMove = false;
-				break;
-			}
-			else {
-				LinkedUnits.push_back(pLinkedUnit);
-			}
-		}
-		if (bCanDoLinkedMove)
-		{
-			setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
-
-			for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
-			{
-				CvUnit* pLinkedUnit = LinkedUnits[iI];
-				pLinkedUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), targetPlot.getX(), targetPlot.getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_KEEP_LINK);
-			}
-		}
-	}
 	//important, first do the move, then subtract the cost
 	//that way setXY can tell whether it's the initial move this turn
-	else
-	{
-		setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
-	}
+	setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
 
 	if (!targetPlot.IsRestoreMoves())
 		changeMoves(-iMoveCost);
@@ -14885,19 +14960,23 @@ void CvUnit::SetIsLinkedLeader(bool bValue)
 
 	if (m_bIsLinkedLeader != bValue)
 	{
-		m_bIsLinkedLeader = bValue;
-
 		if (!bValue)
 		{
-			UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-			for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
+			vector<CvUnit*> LinkedUnits;
+			TryCollectLinkedFollowers(LinkedUnits, false);
+			m_bIsLinkedLeader = bValue;
+			for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
 			{
-				CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
+				CvUnit* pLinkedUnit = LinkedUnits[iI];
 				pLinkedUnit->SetIsLinked(false);
 			}
 
 			SetIsLinked(false);
 			m_LinkedUnitIDs.clear();
+		}
+		else
+		{
+			m_bIsLinkedLeader = bValue;
 		}
 	}
 }
@@ -14971,9 +15050,50 @@ void CvUnit::SetLinkedLeaderID(int iLinkedLeaderID)
 	m_iLinkedLeaderID = iLinkedLeaderID;
 }
 
+//	--------------------------------------------------------------------------------
+CvUnit* CvUnit::GetLinkedLeaderUnit() const
+{
+	VALIDATE_OBJECT();
+	if (GetLinkedLeaderID() == -1)
+	{
+		return NULL;
+	}
+
+	return GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
+}
 
 //	--------------------------------------------------------------------------------
-bool CvUnit::CanLinkUnits()
+bool CvUnit::TryCollectLinkedFollowers(vector<CvUnit*>& vLinkedUnits, bool bRepairInvalidLinks)
+{
+	VALIDATE_OBJECT();
+	vLinkedUnits.clear();
+
+	if (!IsLinkedLeader())
+	{
+		return true;
+	}
+
+	UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
+	for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
+	{
+		CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
+		if (pLinkedUnit == NULL || pLinkedUnit->isDelayedDeath() || pLinkedUnit->getOwner() != m_eOwner || pLinkedUnit->GetLinkedLeaderID() != GetID())
+		{
+			if (bRepairInvalidLinks)
+			{
+				SetIsLinkedLeader(false);
+			}
+			return false;
+		}
+
+		vLinkedUnits.push_back(pLinkedUnit);
+	}
+
+	return true;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvUnit::CanLinkUnits() const
 {
 	VALIDATE_OBJECT();
 
@@ -15049,12 +15169,26 @@ void CvUnit::LinkUnits()
 				if (iLoopMaxMoves < iLowestMaxMoves) {
 					iLowestMaxMoves = iLoopMaxMoves;
 				}
-				if (!bLeaderAssigned && !bIsOnSea && pLoopUnit->AI_getUnitAIType() == UNITAI_WORKER) { // workers are prioritized, allows them to ask for orders
-					pLoopUnit->SetIsLinkedLeader(true);
-					pLinkedLeader = pLoopUnit;
-					bLeaderAssigned = true;
-				}
 			}
+		}
+	}
+
+	struct LinkedUnitIDLess
+	{
+		bool operator()(const CvUnit* pA, const CvUnit* pB) const
+		{
+			return pA->GetID() < pB->GetID();
+		}
+	};
+	std::stable_sort(v_unitvector.begin(), v_unitvector.end(), LinkedUnitIDLess());
+
+	for (int iI = 0; iI < (int)v_unitvector.size(); iI++)
+	{
+		CvUnit* pUnit = v_unitvector[iI];
+		if (!bLeaderAssigned && !bIsOnSea && pUnit->AI_getUnitAIType() == UNITAI_WORKER) { // workers are prioritized, allows them to ask for orders
+			pUnit->SetIsLinkedLeader(true);
+			pLinkedLeader = pUnit;
+			bLeaderAssigned = true;
 		}
 	}
 
@@ -15077,11 +15211,11 @@ void CvUnit::LinkUnits()
 			LinkedUnitIDs.push_back(pUnit->GetID());
 			pUnit->SetLinkedLeaderID(pLinkedLeader->GetID());
 
-			if (pLoopUnit->canFortify(pCurrentPlot)) {
-				pLoopUnit->PushMission(CvTypes::getMISSION_FORTIFY());
+			if (pUnit->canFortify(pCurrentPlot)) {
+				pUnit->PushMission(CvTypes::getMISSION_FORTIFY());
 			}
 			else {
-				pLoopUnit->PushMission(CvTypes::getMISSION_SLEEP());
+				pUnit->PushMission(CvTypes::getMISSION_SLEEP());
 			}
 		}
 	}
@@ -15102,8 +15236,12 @@ void CvUnit::UnlinkUnits() //mostly for the lua call
 			SetIsLinkedLeader(false); // the actual unlinking happens here
 		}
 		else {
-			CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-			pLinkedLeader->SetIsLinkedLeader(false);
+			CvUnit* pLinkedLeader = GetLinkedLeaderUnit();
+			if (pLinkedLeader != NULL)
+			{
+				pLinkedLeader->SetIsLinkedLeader(false);
+			}
+			SetIsLinked(false);
 		}
 	}
 }
@@ -15113,8 +15251,13 @@ void CvUnit::MoveLinkedLeader(CvPlot* pDestPlot)
 {
 	VALIDATE_OBJECT();
 
-	CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-	pLinkedLeader->PushMission(CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED);
+	CvUnit* pLinkedLeader = GetLinkedLeaderUnit();
+	if (pDestPlot == NULL || pLinkedLeader == NULL || pLinkedLeader->isDelayedDeath())
+	{
+		UnlinkUnits();
+		return;
+	}
+	gDLL->sendPushMission(pLinkedLeader->GetID(), CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED, false);
 
 }
 //	--------------------------------------------------------------------------------
@@ -15122,13 +15265,13 @@ void CvUnit::DoGroupMovement(CvPlot* pDestPlot)
 {
 	VALIDATE_OBJECT();
 
-	LinkUnits();
 	const CvPlot* pCurrentPlot = plot();
 
-	if (pCurrentPlot == NULL)
+	if (pCurrentPlot == NULL || pDestPlot == NULL || !isHuman(ISHUMAN_AI_UNITS))
 		return;
 
 	vector<CvUnit*> v_unitvector;
+	vector<CvPlot*> v_targetPlots;
 	int iLowestCurrentMoves = getMoves();
 	int iLowestMaxMoves = maxMoves();
 
@@ -15166,7 +15309,7 @@ void CvUnit::DoGroupMovement(CvPlot* pDestPlot)
 		}
 	}
 
-	for (int iI = 0; iI < (int)v_unitvector.size(); iI++) // then move the units
+	for (int iI = 0; iI < (int)v_unitvector.size(); iI++) // validate rigid formation before mutating any unit state
 	{
 		CvUnit* pUnit = v_unitvector[iI];
 
@@ -15174,28 +15317,34 @@ void CvUnit::DoGroupMovement(CvPlot* pDestPlot)
 		int iYDiff = getY() - pUnit->getY();
 		CvPlot* pFirstTargetPlot = GC.getMap().plot(pDestPlot->getX() - iXDiff, pDestPlot->getY() - iYDiff); // ideal plot
 
+		if (pFirstTargetPlot == NULL || !pUnit->canMoveInto(*pFirstTargetPlot, CvUnit::MOVEFLAG_DESTINATION))
+		{
+			return;
+		}
+
+		v_targetPlots.push_back(pFirstTargetPlot);
+	}
+
+	if (!canMoveInto(*pDestPlot, CvUnit::MOVEFLAG_DESTINATION))
+	{
+		return;
+	}
+
+	for (int iI = 0; iI < (int)v_unitvector.size(); iI++) // then move the units
+	{
+		CvUnit* pUnit = v_unitvector[iI];
+		CvPlot* pFirstTargetPlot = v_targetPlots[iI];
+
 		pUnit->SetIsGrouped(true);
 		pUnit->setMoves(iLowestCurrentMoves);
 		pUnit->SetLinkedMaxMoves(iLowestMaxMoves);
-		// first we try to move the unit and keep its relative position, if fails, we try to move the unit to ring1 and then ring2.
-		if (pUnit->canMoveInto(*pFirstTargetPlot, CvUnit::MOVEFLAG_DESTINATION)) {
-			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pFirstTargetPlot->getX(), pFirstTargetPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED);
-		}
-		else if (pUnit->canMoveInto(*pDestPlot, CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_APPROX_TARGET_RING1)) {
-			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED | CvUnit::MOVEFLAG_APPROX_TARGET_RING1);
-		}
-		else if (pUnit->canMoveInto(*pDestPlot, CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_APPROX_TARGET_RING2)) {
-			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED | CvUnit::MOVEFLAG_APPROX_TARGET_RING2);
-		}
-		else {
-			pUnit->SetIsGrouped(false); // cannot move the unit, kick it out of the group
-		}
+		gDLL->sendPushMission(pUnit->GetID(), CvTypes::getMISSION_MOVE_TO(), pFirstTargetPlot->getX(), pFirstTargetPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED, false);
 	}
 
 	SetIsGrouped(true); 
 	setMoves(iLowestCurrentMoves);	
 	SetLinkedMaxMoves(iLowestMaxMoves);
-	PushMission(CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED); // the iterator doesn't include the current plot, so move the ordering unit & and its stack here
+	gDLL->sendPushMission(GetID(), CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED, false); // the iterator doesn't include the current plot, so move the ordering unit & and its stack here
 }
 
 int CvUnit::GetSquadNumber() const
@@ -15680,10 +15829,11 @@ void CvUnit::TryEndSquadMovement()
 			// so handle them alongside the leader
 			if (IsLinkedLeader())
 			{
-				UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-				for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
+				vector<CvUnit*> LinkedUnits;
+				TryCollectLinkedFollowers(LinkedUnits, true);
+				for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
 				{
-					CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
+					CvUnit* pLinkedUnit = LinkedUnits[iI];
 					if (pLinkedUnit->canSentry(plot()))
 					{
 						gDLL->sendPushMission(pLinkedUnit->GetID(), CvTypes::getMISSION_ALERT(), 0, 0, 0, false);
@@ -30867,7 +31017,7 @@ bool CvUnit::CanDoInterfaceMode(InterfaceModeTypes eInterfaceMode, bool bTestVis
 		break;
 
 	case INTERFACEMODE_MOVE_TO_ALL:
-		if (MOD_LINKED_MOVEMENT && IsCombatUnit() && getDomainType() != DOMAIN_AIR && GetNumOwningPlayerUnitsAdjacent() > 0)
+		if (MOD_QUICK_GROUP_MOVEMENT && IsCombatUnit() && getDomainType() != DOMAIN_AIR && GetNumOwningPlayerUnitsAdjacent() > 0)
 		{
 			return true;
 		}
@@ -31874,6 +32024,61 @@ bool CvUnit::CheckWithdrawal(const CvUnit& attacker) const
 	int iRoll = GC.getGame().randRangeExclusive(0, 10, CvSeeder(plot()->GetPseudoRandomSeed()).mix(GetID()).mix(getDamage())) * 10;
 	return iRoll < iWithdrawChance;
 }
+
+//	--------------------------------------------------------------------------------
+static bool UnitVectorContainsUnit(const vector<CvUnit*>& vUnits, const CvUnit* pUnit)
+{
+	for (size_t i = 0; i < vUnits.size(); i++)
+	{
+		if (vUnits[i] == pUnit)
+			return true;
+	}
+
+	return false;
+}
+
+//	--------------------------------------------------------------------------------
+static void AddUnitToVectorOnce(vector<CvUnit*>& vUnits, CvUnit* pUnit)
+{
+	if (pUnit != NULL && !UnitVectorContainsUnit(vUnits, pUnit))
+	{
+		vUnits.push_back(pUnit);
+	}
+}
+
+//	--------------------------------------------------------------------------------
+static bool CanUnitFallBackToPlot(const CvUnit* pUnit, const CvPlot* pDestPlot)
+{
+	if (pUnit == NULL || pDestPlot == NULL)
+		return false;
+
+	return pUnit->canMoveInto(*pDestPlot, CvUnit::MOVEFLAG_DESTINATION) && !(pUnit->isEmbarked() && pUnit->isNativeDomain(pDestPlot)) && !(!pUnit->isEmbarked() && !pUnit->canMoveInto(*pDestPlot, CvUnit::MOVEFLAG_NO_EMBARK));
+}
+
+//	--------------------------------------------------------------------------------
+static void MoveUnitWithEmbarkTransition(CvUnit* pUnit, CvPlot* pDestPlot, bool bShow)
+{
+	if (pUnit == NULL || pDestPlot == NULL)
+		return;
+
+	CvPlot* pOldPlot = pUnit->plot();
+	if (pOldPlot != NULL && pUnit->CanEverEmbark() && pDestPlot->needsEmbarkation(pUnit) != pOldPlot->needsEmbarkation(pUnit))
+	{
+		if (pUnit->isEmbarked() && !pDestPlot->needsEmbarkation(pUnit))
+		{
+			pUnit->PublishQueuedVisualizationMoves();
+			pUnit->disembark(pOldPlot);
+		}
+		else if (!pUnit->isEmbarked() && pDestPlot->needsEmbarkation(pUnit))
+		{
+			pUnit->PublishQueuedVisualizationMoves();
+			pUnit->embark(pOldPlot);
+		}
+	}
+
+	pUnit->setXY(pDestPlot->getX(), pDestPlot->getY(), true, true, bShow, true);
+}
+
 //	--------------------------------------------------------------------------------
 bool CvUnit::DoFallBack(const CvUnit& attacker, bool bWithdraw, bool bCaptured)
 {
@@ -31906,6 +32111,45 @@ bool CvUnit::DoFallBack(const CvUnit& attacker, bool bWithdraw, bool bCaptured)
 		}
 	}
 
+	if (!bCaptured && (MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinked())
+	{
+		CvUnit* pLinkedLeader = IsLinkedLeader() ? this : GetLinkedLeaderUnit();
+		if (pLinkedLeader == NULL || pLinkedLeader->isDelayedDeath() || pLinkedLeader->plot() != plot())
+		{
+			if (pLinkedLeader != NULL && pLinkedLeader->IsLinkedLeader())
+				pLinkedLeader->SetIsLinkedLeader(false);
+			else
+				SetIsLinked(false);
+		}
+		else
+		{
+			vector<CvUnit*> aLinkedFollowers;
+			if (!pLinkedLeader->TryCollectLinkedFollowers(aLinkedFollowers, true))
+			{
+				return false;
+			}
+
+			if (pLinkedLeader != this)
+			{
+				AddUnitToVectorOnce(aEscortedUnits, pLinkedLeader);
+			}
+
+			for (size_t i = 0; i < aLinkedFollowers.size(); i++)
+			{
+				CvUnit* pLinkedUnit = aLinkedFollowers[i];
+				if (pLinkedUnit == NULL || pLinkedUnit->plot() != plot())
+				{
+					pLinkedLeader->SetIsLinkedLeader(false);
+					return false;
+				}
+				if (pLinkedUnit != this)
+				{
+					AddUnitToVectorOnce(aEscortedUnits, pLinkedUnit);
+				}
+			}
+		}
+	}
+
 	// Performance improvement if the unit is captured and can't or doesn't escort anything
 	if (bCaptured && aEscortedUnits.empty())
 		return true;
@@ -31924,7 +32168,7 @@ bool CvUnit::DoFallBack(const CvUnit& attacker, bool bWithdraw, bool bCaptured)
 				bool bNoRetreat = false;
 				for (size_t j = 0; j < aEscortedUnits.size(); j++)
 				{
-					if (!aEscortedUnits[j]->canMoveInto(*pDirectionPlot, MOVEFLAG_DESTINATION) || (aEscortedUnits[j]->isEmbarked() && aEscortedUnits[j]->isNativeDomain(pDirectionPlot)) || (!aEscortedUnits[j]->isEmbarked() && !aEscortedUnits[j]->canMoveInto(*pDirectionPlot, MOVEFLAG_NO_EMBARK)))
+					if (!CanUnitFallBackToPlot(aEscortedUnits[j], pDirectionPlot))
 					{
 						bNoRetreat = true;
 						break;
@@ -31986,30 +32230,48 @@ bool CvUnit::DoFallBack(const CvUnit& attacker, bool bWithdraw, bool bCaptured)
 	if (!pDestPlot)
 		return false;
 
-	// Actually do the withdrawal if this unit isn't captured
+	vector<CvUnit*> aFallBackUnits;
 	if (!bCaptured)
-		setXY(pDestPlot->getX(), pDestPlot->getY(), true, true, true, true);
+	{
+		AddUnitToVectorOnce(aFallBackUnits, this);
+	}
 
 	if (aEscortedUnits.size() > 0)
 	{
 		for (size_t i = 0; i < aEscortedUnits.size(); i++)
 		{
-			// Civilian and embarked units also retreat (if possible)
-			// Need to check whether the unit can enter the plot again, because it might have changed (stacking rules)
-			if (aEscortedUnits[i]->canMoveInto(*pDestPlot, MOVEFLAG_DESTINATION))
-			{
-				aEscortedUnits[i]->setXY(pDestPlot->getX(), pDestPlot->getY(), true, true, true, true);
-				aEscortedUnits[i]->PublishQueuedVisualizationMoves(); // Display the civilians retreating before the escort does
-			}
+			AddUnitToVectorOnce(aFallBackUnits, aEscortedUnits[i]);
 		}
 	}
 
-	if (!bCaptured)
+	for (size_t i = 0; i < aFallBackUnits.size(); i++)
 	{
-		PublishQueuedVisualizationMoves();
-		if (bWithdraw)
-			m_bHasWithdrawnThisTurn = true;
+		if (!CanUnitFallBackToPlot(aFallBackUnits[i], pDestPlot))
+		{
+			return false;
+		}
 	}
+
+	struct FallBackUnitOrder
+	{
+		bool operator()(const CvUnit* pA, const CvUnit* pB) const
+		{
+			if (pA->IsCivilianUnit() != pB->IsCivilianUnit())
+				return !pA->IsCivilianUnit();
+
+			return false;
+		}
+	};
+	std::stable_sort(aFallBackUnits.begin(), aFallBackUnits.end(), FallBackUnitOrder());
+
+	for (size_t i = 0; i < aFallBackUnits.size(); i++)
+	{
+		MoveUnitWithEmbarkTransition(aFallBackUnits[i], pDestPlot, true);
+		aFallBackUnits[i]->PublishQueuedVisualizationMoves();
+	}
+
+	if (!bCaptured && bWithdraw)
+		m_bHasWithdrawnThisTurn = true;
 
 	return true;
 }
