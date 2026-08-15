@@ -25320,7 +25320,7 @@ void CvUnit::ChangeCanHeavyChargeCount(int iChange)
 
 bool CvUnit::IsOnHeavyChargeProtectedPlot() const
 {
-	const CvPlot* pPlot = plot();
+	CvPlot* pPlot = plot();
 	if (!pPlot)
 		return false;
 
