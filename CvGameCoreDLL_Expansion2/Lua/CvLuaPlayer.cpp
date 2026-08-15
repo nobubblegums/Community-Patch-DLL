@@ -12500,6 +12500,11 @@ int CvLuaPlayer::lGetMilitaryLog(lua_State* L)
 	int index = 1;
 
 	CvEventLog* pMilitaryLog = pkPlayer->GetMilitaryLog();
+	if (!pMilitaryLog)
+	{
+		return 1;
+	}
+
 	for (int i = 0; i < pMilitaryLog->GetNumEvents(); i++)
 	{
 		lua_createtable(L, 0, 0);
