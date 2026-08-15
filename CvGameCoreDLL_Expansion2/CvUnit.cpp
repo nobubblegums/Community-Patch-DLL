@@ -32122,27 +32122,27 @@ static bool CanUnitFallBackToPlot(const CvUnit* pUnit, const CvPlot* pDestPlot)
 }
 
 //	--------------------------------------------------------------------------------
-static void MoveUnitWithEmbarkTransition(CvUnit* pUnit, CvPlot* pDestPlot, bool bShow)
+void CvUnit::MoveWithEmbarkTransition(CvPlot* pDestPlot, bool bShow)
 {
-	if (pUnit == NULL || pDestPlot == NULL)
+	if (pDestPlot == NULL)
 		return;
 
-	CvPlot* pOldPlot = pUnit->plot();
-	if (pOldPlot != NULL && pUnit->CanEverEmbark() && pDestPlot->needsEmbarkation(pUnit) != pOldPlot->needsEmbarkation(pUnit))
+	CvPlot* pOldPlot = plot();
+	if (pOldPlot != NULL && CanEverEmbark() && pDestPlot->needsEmbarkation(this) != pOldPlot->needsEmbarkation(this))
 	{
-		if (pUnit->isEmbarked() && !pDestPlot->needsEmbarkation(pUnit))
+		if (isEmbarked() && !pDestPlot->needsEmbarkation(this))
 		{
-			pUnit->PublishQueuedVisualizationMoves();
-			pUnit->disembark(pOldPlot);
+			PublishQueuedVisualizationMoves();
+			disembark(pOldPlot);
 		}
-		else if (!pUnit->isEmbarked() && pDestPlot->needsEmbarkation(pUnit))
+		else if (!isEmbarked() && pDestPlot->needsEmbarkation(this))
 		{
-			pUnit->PublishQueuedVisualizationMoves();
-			pUnit->embark(pOldPlot);
+			PublishQueuedVisualizationMoves();
+			embark(pOldPlot);
 		}
 	}
 
-	pUnit->setXY(pDestPlot->getX(), pDestPlot->getY(), true, true, bShow, true);
+	setXY(pDestPlot->getX(), pDestPlot->getY(), true, true, bShow, true);
 }
 
 //	--------------------------------------------------------------------------------
@@ -32332,7 +32332,7 @@ bool CvUnit::DoFallBack(const CvUnit& attacker, bool bWithdraw, bool bCaptured)
 
 	for (size_t i = 0; i < aFallBackUnits.size(); i++)
 	{
-		MoveUnitWithEmbarkTransition(aFallBackUnits[i], pDestPlot, true);
+		aFallBackUnits[i]->MoveWithEmbarkTransition(pDestPlot, true);
 		aFallBackUnits[i]->PublishQueuedVisualizationMoves();
 	}
 

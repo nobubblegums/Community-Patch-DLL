@@ -2303,6 +2303,7 @@ protected:
 	bool HasQueuedVisualizationMoves() const;
 	void QueueMoveForVisualization(CvPlot* pkPlot);
 	void PublishQueuedVisualizationMoves();
+	void MoveWithEmbarkTransition(CvPlot* pDestPlot, bool bShow);
 
 	bool EmergencyRebase();
 	bool CheckDOWNeededForMove(int iX, int iY, bool bPopup = true);
