@@ -1171,6 +1171,7 @@
 
 		<!-- Linked & group movement -->
 		<Row Class="2" Name="LINKED_MOVEMENT" Value="0"/>
+		<Row Class="2" Name="QUICK_GROUP_MOVEMENT" Value="0"/>
 
 		<!-- Permits Deep Water (Ocean) embarkation for hovering units -->
 		<!-- See also: "Promotions - Terrain Crossing" -->

@@ -857,7 +857,9 @@ public:
 	UnitIdContainer GetLinkedUnits();
 	int GetLinkedMaxMoves() const;
 	void SetLinkedMaxMoves(int iValue);
-	bool CanLinkUnits();
+	CvUnit* GetLinkedLeaderUnit() const;
+	bool TryCollectLinkedFollowers(std::vector<CvUnit*>& vLinkedUnits, bool bRepairInvalidLinks);
+	bool CanLinkUnits() const;
 	void LinkUnits();
 	void UnlinkUnits();
 	void MoveLinkedLeader(CvPlot* pDestPlot);
