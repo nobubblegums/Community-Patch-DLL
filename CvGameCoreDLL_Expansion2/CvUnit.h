@@ -649,6 +649,7 @@ public:
 	int healTurns(const CvPlot* pPlot) const;
 	void doHeal();
 	void DoAttrition();
+	int GetProjectedAttritionDamage(const CvPlot* pPlot, bool bAssumeMovedThisTurn) const;
 	int GetDanger(const CvPlot* pAtPlot=NULL) const;
 	int GetDanger(const CvPlot* pAtPlot, const SUnitIDValueContainer& unitDamageDealt, int iExtraDamage) const;
 
@@ -1729,6 +1730,8 @@ public:
 
 	bool IsCanHeavyCharge() const;
 	void ChangeCanHeavyChargeCount(int iChange);
+	bool IsOnHeavyChargeProtectedPlot() const;
+	bool CanHeavyChargeForceRetreat(const CvUnit& kDefender, int iAssumeExtraDefenderDamage = 0) const;
 
 	int GetMoraleBreakChance() const;
 	void ChangeMoraleBreakChance(int iChange);

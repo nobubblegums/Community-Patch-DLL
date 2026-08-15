@@ -521,20 +521,17 @@ void CvUnitCombat::ResolveMeleeCombat(const CvCombatInfo& kCombatInfo, uint uiPa
 		{
 			if(pkTargetPlot)
 			{
-				if (pkAttacker->IsCanHeavyCharge() && !pkDefender->isDelayedDeath())
+				if (pkAttacker->IsCanHeavyCharge() && !pkDefender->isDelayedDeath() && (!MOD_BAL_ATTRITION || pkAttacker->CanHeavyChargeForceRetreat(*pkDefender)))
 				{
-					if (!MOD_ATTRITION || !(pkDefender->plot()->isFortification(pkDefender->getTeam()) || pkDefender->plot()->HasBarbarianCamp()))
+					if (!MOD_BALANCE_VP && bAttackerDidMoreDamage)
 					{
-						if (!MOD_BALANCE_VP && bAttackerDidMoreDamage)
-						{
-							pkDefender->DoFallBack(*pkAttacker);
-						}
-						else if (MOD_BALANCE_VP && kCombatInfo.getAttackerIsStronger())
-						{
-							pkDefender->DoFallBack(*pkAttacker);
-						}
-						//no notifications?
+						pkDefender->DoFallBack(*pkAttacker);
 					}
+					else if (MOD_BALANCE_VP && kCombatInfo.getAttackerIsStronger())
+					{
+						pkDefender->DoFallBack(*pkAttacker);
+					}
+					//no notifications?
 				}
 
 				bool bCanAdvance = kCombatInfo.getAttackerAdvances() && pkTargetPlot->getNumVisibleEnemyDefenders(pkAttacker) == 0;

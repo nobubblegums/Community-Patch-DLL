@@ -1291,6 +1291,10 @@ int PathEndTurnCost(CvPlot* pToPlot, const CvPathNodeCacheData& kToNodeCacheData
 		//calculcate danger. this is expensive but the last result is cached for each plot
 		//note: it includes an overkill factor because usually not all enemy units will attack this one unit
 		int iPlotDanger = pUnit->GetDanger(pToPlot);
+		if (MOD_BAL_ATTRITION)
+		{
+			iPlotDanger = max(iPlotDanger, pUnit->GetProjectedAttritionDamage(pToPlot, pToPlot != pUnit->plot()));
+		}
 
 		//we should give more weight to the first end-turn plot, the danger values for future stops are less concrete
 		int iFutureFactor = std::max(1,4-iTurnsInFuture);

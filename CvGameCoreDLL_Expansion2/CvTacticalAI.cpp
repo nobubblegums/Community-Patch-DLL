@@ -7446,6 +7446,7 @@ bool ScoreAttackDamage(const CvTacticalPlot* tactPlot, const CvUnit* pUnit, cons
 	int iTotalActualUnitDamageDealt = 0;
 	bool bCityKill = false;
 	bool bUnitKill = false;
+	bool bHeavyChargeRetreat = false;
 
 	//bonus for a kill
 	//don't be too precise because of randomness in damage calculation added later
@@ -7539,6 +7540,12 @@ bool ScoreAttackDamage(const CvTacticalPlot* tactPlot, const CvUnit* pUnit, cons
 		}
 	}
 
+	if (!bRanged && !bUnitKill && pEnemyUnit)
+	{
+		int iProjectedDefenderDamage = prevUnitDamage.GetValue(pEnemyUnit->GetID()) + unitDamageDealt.GetValue(pEnemyUnit->GetID());
+		bHeavyChargeRetreat = pUnit->CanHeavyChargeForceRetreat(*pEnemyUnit, iProjectedDefenderDamage);
+	}
+
 	if (bCityKill)
 		result->eAssignmentType = A_MELEEKILL;
 	else if (bUnitKill)
@@ -7550,6 +7557,8 @@ bool ScoreAttackDamage(const CvTacticalPlot* tactPlot, const CvUnit* pUnit, cons
 		else
 			result->eAssignmentType = A_MELEEKILL;
 	}
+	else if (bHeavyChargeRetreat)
+		result->eAssignmentType = A_MELEEKILL;
 	else
 		result->eAssignmentType = bRanged ? A_RANGEATTACK : A_MELEEATTACK;
 
