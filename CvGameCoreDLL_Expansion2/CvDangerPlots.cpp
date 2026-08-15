@@ -807,6 +807,10 @@ int CvDangerPlotContents::GetDanger(const CvUnit* pUnit, const SUnitIDValueConta
 		// Static damage
 		iPlotDamage += m_iImprovementDamage;
 		iPlotDamage += m_bFlatPlotDamage ? m_pPlot->getTurnDamage(pUnit->ignoreTerrainDamage(), pUnit->ignoreFeatureDamage(), pUnit->extraTerrainDamage(), pUnit->extraFeatureDamage()) : 0;
+		if (MOD_BAL_ATTRITION)
+		{
+			iPlotDamage += pUnit->GetProjectedAttritionDamage(m_pPlot, m_pPlot != pUnit->plot());
+		}
 
 		// Potential damage from enemy units in fog 
 		// Note: Visibility might have changed but tracking this is too expensive, this should be good enough
@@ -920,6 +924,10 @@ int CvDangerPlotContents::GetDanger(const CvUnit* pUnit, const SUnitIDValueConta
 	// Damage from surrounding improvements (citadel) and the plot itself
 	iPlotDamage += m_iImprovementDamage;
 	iPlotDamage += m_bFlatPlotDamage ? m_pPlot->getTurnDamage(pUnit->ignoreTerrainDamage(), pUnit->ignoreFeatureDamage(), pUnit->extraTerrainDamage(), pUnit->extraFeatureDamage()) : 0;
+	if (MOD_BAL_ATTRITION)
+	{
+		iPlotDamage += pUnit->GetProjectedAttritionDamage(m_pPlot, m_pPlot != pUnit->plot());
+	}
 
 	//done
 	return iPlotDamage;

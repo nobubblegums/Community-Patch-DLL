@@ -1061,7 +1061,7 @@
 #define MOD_ALTERNATIVE_DIFFICULTY									gCustomMods.isALTERNATIVE_DIFFICULTY()
 
 // Units take damage in enemy lands
-#define MOD_ATTRITION												gCustomMods.isATTRITION()
+#define MOD_BAL_ATTRITION											gCustomMods.isBAL_ATTRITION()
 
 // Activate eureka for tech cost bonus 'quest'
 #define MOD_CIV6_EUREKAS											gCustomMods.isCIV6_EUREKAS()
@@ -1838,7 +1838,7 @@ public:
 
 	// Modmodders' Options
 	MOD_OPT_DECL(ALTERNATIVE_DIFFICULTY);
-	MOD_OPT_DECL(ATTRITION);
+	MOD_OPT_DECL(BAL_ATTRITION);
 	MOD_OPT_DECL(CIV6_EUREKAS);
 	MOD_OPT_DECL(CIV6_ROADS);
 	MOD_OPT_DECL(CIV6_WORKER);

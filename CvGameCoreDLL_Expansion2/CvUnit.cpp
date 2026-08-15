@@ -8192,10 +8192,14 @@ void CvUnit::DoAttrition()
 
 	if (!pPlot->IsFriendlyTerritory(getOwner()))
 	{
-		if (MOD_ATTRITION && !isBarbarian() && !IsCivilianUnit() && isEnemy(pPlot->getTeam(), pPlot) && (GC.getGame().getGameTurn() - getLastMoveTurn() < 2) && !isHasPromotion((PromotionTypes)GC.getInfoTypeForString("PROMOTION_ATTRITION_IMMUNITY", true)))
+		if (MOD_BAL_ATTRITION)
 		{
-			strAppendText = GetLocalizedText("TXT_KEY_MISC_YOU_UNIT_WAS_DAMAGED_ATTRITION");
-			changeDamage(5, NO_PLAYER, 0.0, &strAppendText);
+			int iProjectedAttritionDamage = GetProjectedAttritionDamage(pPlot, false);
+			if (iProjectedAttritionDamage > 0)
+			{
+				strAppendText = GetLocalizedText("TXT_KEY_MISC_YOU_UNIT_WAS_DAMAGED_ATTRITION");
+				changeDamage(iProjectedAttritionDamage, NO_PLAYER, 0.0, &strAppendText);
+			}
 		}
 
 		if (isEnemy(pPlot->getTeam(), pPlot) && getEnemyDamageChance() > 0 && getEnemyDamage() > 0)
@@ -8298,6 +8302,34 @@ void CvUnit::DoAttrition()
 			}
 		}
 	}
+}
+
+int CvUnit::GetProjectedAttritionDamage(const CvPlot* pPlot, bool bAssumeMovedThisTurn) const
+{
+	if (!pPlot)
+		return 0;
+
+	if (isTrade() || isBarbarian() || IsCivilianUnit())
+		return 0;
+
+	if (!isEnemy(pPlot->getTeam(), pPlot))
+		return 0;
+
+	if (!bAssumeMovedThisTurn && GC.getGame().getGameTurn() - getLastMoveTurn() >= 2)
+		return 0;
+
+	static bool bCachedAttritionImmunity = false;
+	static PromotionTypes eAttritionImmunity = NO_PROMOTION;
+	if (!bCachedAttritionImmunity)
+	{
+		eAttritionImmunity = (PromotionTypes)GC.getInfoTypeForString("PROMOTION_ATTRITION_IMMUNITY", true);
+		bCachedAttritionImmunity = true;
+	}
+
+	if (eAttritionImmunity != NO_PROMOTION && isHasPromotion(eAttritionImmunity))
+		return 0;
+
+	return max(0, GD_INT_GET(BAL_ATTRITION_DAMAGE));
 }
 //	--------------------------------------------------------------------------------
 int CvUnit::GetDanger(const CvPlot* pAtPlot) const
@@ -16812,8 +16844,11 @@ int CvUnit::GetMaxAttackStrength(const CvPlot* pFromPlot, const CvPlot* pToPlot,
 		//Heavy charge without escape
 		if (IsCanHeavyCharge() && pDefender->GetNumFallBackPlotsAvailable(*this)==0)
 		{
-			if (MOD_ATTRITION)
-				iModifier += 25;
+			if (MOD_BAL_ATTRITION)
+			{
+				if (!pDefender->IsOnHeavyChargeProtectedPlot())
+					iModifier += max(0, GD_INT_GET(BAL_HEAVY_CHARGE_NO_RETREAT_MODIFIER));
+			}
 			else
 				iModifier += 50;
 		}
@@ -25131,6 +25166,37 @@ bool CvUnit::IsCanHeavyCharge() const
 void CvUnit::ChangeCanHeavyChargeCount(int iChange)
 {
 	m_iCanHeavyCharge += iChange;
+}
+
+bool CvUnit::IsOnHeavyChargeProtectedPlot() const
+{
+	const CvPlot* pPlot = plot();
+	if (!pPlot)
+		return false;
+
+	return pPlot->isFortification(getTeam()) || pPlot->HasBarbarianCamp();
+}
+
+bool CvUnit::CanHeavyChargeForceRetreat(const CvUnit& kDefender, int iAssumeExtraDefenderDamage) const
+{
+	if (!MOD_BAL_ATTRITION || !IsCanHeavyCharge() || kDefender.isDelayedDeath())
+		return false;
+
+	if (kDefender.IsOnHeavyChargeProtectedPlot())
+		return false;
+
+	int iRetreatMaxHP = range(GD_INT_GET(BAL_HEAVY_CHARGE_RETREAT_MAX_HP), 0, kDefender.GetMaxHitPoints());
+	if (iRetreatMaxHP <= 0)
+		return false;
+
+	int iRemainingHP = kDefender.GetCurrHitPoints() - max(0, iAssumeExtraDefenderDamage);
+	if (iRemainingHP <= 0)
+		return false;
+
+	if (iRemainingHP >= iRetreatMaxHP)
+		return false;
+
+	return kDefender.GetNumFallBackPlotsAvailable(*this) > 0;
 }
 //	--------------------------------------------------------------------------------
 int CvUnit::GetMoraleBreakChance() const

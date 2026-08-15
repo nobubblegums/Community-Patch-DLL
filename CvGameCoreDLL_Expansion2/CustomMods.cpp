@@ -585,7 +585,7 @@ int CustomMods::getOption(const string& sOption, int defValue)
 
 		// Modmodders' Options
 		MOD_OPT_CACHE(ALTERNATIVE_DIFFICULTY);
-		MOD_OPT_CACHE(ATTRITION);
+		MOD_OPT_CACHE(BAL_ATTRITION);
 		MOD_OPT_CACHE(CIV6_EUREKAS);
 		MOD_OPT_CACHE(CIV6_ROADS);
 		MOD_OPT_CACHE(CIV6_WORKER);

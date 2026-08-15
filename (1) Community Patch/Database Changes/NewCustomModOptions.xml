@@ -1186,7 +1186,7 @@
 		<Row Class="6" Name="ALTERNATIVE_DIFFICULTY" Value="0" DbUpdates="1"/>
 
 		<!-- Units take damage in enemy lands -->
-		<Row Class="6" Name="ATTRITION" Value="0"/>
+		<Row Class="6" Name="BAL_ATTRITION" Value="0"/>
 
 		<!-- Activate eureka for tech cost bonus 'quest' -->
 		<Row Class="6" Name="CIV6_EUREKAS" Value="0"/>
