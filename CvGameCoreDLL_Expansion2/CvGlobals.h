@@ -163,7 +163,9 @@ class CvGlobals
 public:
 	enum SaveVersionTags
 	{
-		SAVE_VERSION_LATEST = 0,
+		SAVE_VERSION_INITIAL = 0,
+		SAVE_VERSION_MILITARY_LOG = 1,
+		SAVE_VERSION_LATEST = SAVE_VERSION_MILITARY_LOG,
 	};
 
 	typedef stdext::hash_map<std::string /* type string */, int /* info index */> InfosMap;

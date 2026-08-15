@@ -5,6 +5,9 @@
 #include "LintFree.h"
 
 #define MAX_EVENTS 50
+#define MILITARY_LOG_SAVE_MARKER 0x4d4c4f47
+#define MILITARY_LOG_SAVE_VERSION 1
+#define MILITARY_LOG_MAX_SERIALIZED_ENTRIES 10000
 
 void CvEventLog::EventLogEntry::Clear()
 {
@@ -55,6 +58,67 @@ void CvEventLog::Uninit(void)
 
 	m_iEventsBeginIndex = -1;
 	m_iEventsEndIndex = -1;
+}
+
+void CvEventLog::Read(FDataStream& kStream)
+{
+	PlayerTypes ePlayer = m_ePlayer;
+	Init(ePlayer);
+
+	int iMarker = 0;
+	int iVersion = 0;
+	int iEntryCount = 0;
+	kStream >> iMarker;
+	kStream >> iVersion;
+	kStream >> iEntryCount;
+
+	if (iMarker != MILITARY_LOG_SAVE_MARKER || iVersion < 1)
+	{
+		ASSERT(false, "Invalid military log save data.");
+		return;
+	}
+
+	if (iEntryCount < 0)
+	{
+		ASSERT(false, "Invalid military log entry count.");
+		iEntryCount = 0;
+	}
+	else if (iEntryCount > MILITARY_LOG_MAX_SERIALIZED_ENTRIES)
+	{
+		ASSERT(false, "Unreasonably large military log entry count.");
+	}
+
+	const int iFirstEntryToRestore = std::max(0, iEntryCount - GetMaxStoredEvents());
+	for (int i = 0; i < iEntryCount; i++)
+	{
+		EventLogEntry kEntry;
+		ReadEntry(kStream, kEntry);
+		if (i >= iFirstEntryToRestore)
+		{
+			RestoreEvent(kEntry);
+		}
+	}
+}
+
+void CvEventLog::Write(FDataStream& kStream) const
+{
+	kStream << MILITARY_LOG_SAVE_MARKER;
+	kStream << MILITARY_LOG_SAVE_VERSION;
+
+	const int iEntryCount = GetNumEvents();
+	kStream << iEntryCount;
+	for (int i = 0; i < iEntryCount; i++)
+	{
+		const int iRealIndex = (m_iEventsBeginIndex + i) % m_aEvents.size();
+		WriteEntry(kStream, m_aEvents[iRealIndex]);
+	}
+}
+
+void CvEventLog::WriteEmpty(FDataStream& kStream)
+{
+	kStream << MILITARY_LOG_SAVE_MARKER;
+	kStream << MILITARY_LOG_SAVE_VERSION;
+	kStream << 0;
 }
 
 bool CvEventLog::Add(const char* szMessage, PlayerTypes eOtherPlayerID, int iX, int iY, int iData1, int iData2, int iData3, int iData4)
@@ -161,6 +225,55 @@ bool CvEventLog::IsLogFull() const
 	}
 
 	return iAdjustedEndIndex == m_iEventsBeginIndex;
+}
+
+int CvEventLog::GetMaxStoredEvents() const
+{
+	return m_aEvents.empty() ? 0 : (int)m_aEvents.size() - 1;
+}
+
+void CvEventLog::RestoreEvent(const EventLogEntry& kEntry)
+{
+	if (m_aEvents.empty())
+	{
+		return;
+	}
+
+	if (IsLogFull())
+	{
+		RemoveOldestEvent();
+	}
+
+	m_aEvents[m_iEventsEndIndex] = kEntry;
+	IncrementEndIndex();
+	m_iCurrentLookupIndex++;
+}
+
+void CvEventLog::ReadEntry(FDataStream& kStream, EventLogEntry& kEntry)
+{
+	kEntry.Clear();
+	kStream >> kEntry.m_iTurn;
+	kStream >> kEntry.m_strMessage;
+	kStream >> kEntry.m_eOtherPlayer;
+	kStream >> kEntry.m_iX;
+	kStream >> kEntry.m_iY;
+	kStream >> kEntry.m_iData1;
+	kStream >> kEntry.m_iData2;
+	kStream >> kEntry.m_iData3;
+	kStream >> kEntry.m_iData4;
+}
+
+void CvEventLog::WriteEntry(FDataStream& kStream, const EventLogEntry& kEntry)
+{
+	kStream << kEntry.m_iTurn;
+	kStream << kEntry.m_strMessage;
+	kStream << kEntry.m_eOtherPlayer;
+	kStream << kEntry.m_iX;
+	kStream << kEntry.m_iY;
+	kStream << kEntry.m_iData1;
+	kStream << kEntry.m_iData2;
+	kStream << kEntry.m_iData3;
+	kStream << kEntry.m_iData4;
 }
 
 void CvEventLog::RemoveOldestEvent()

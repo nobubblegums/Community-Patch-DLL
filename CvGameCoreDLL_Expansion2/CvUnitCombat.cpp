@@ -2461,6 +2461,18 @@ void CvUnitCombat::GenerateNuclearCombatInfo(CvUnit& kAttacker, CvPlot& plot, Cv
 				}
 			}
 
+			if (MOD_WH_MILITARY_LOG)
+			{
+				Localization::String strAttackerLog = Localization::Lookup("TXT_KEY_ATOMIC_BOMB_INTERCEPTED_US");
+				strAttackerLog << pInterceptionCity->getNameKey();
+				MILITARYLOG(kAttacker.getOwner(), strAttackerLog.toUTF8(), pInterceptionCityPlot, pInterceptionCity->getOwner());
+
+				Localization::String strDefenderLog = Localization::Lookup("TXT_KEY_ATOMIC_BOMB_INTERCEPTED");
+				strDefenderLog << GET_PLAYER(kAttacker.getOwner()).getCivilizationAdjectiveKey();
+				strDefenderLog << pInterceptionCity->getNameKey();
+				MILITARYLOG(pInterceptionCity->getOwner(), strDefenderLog.toUTF8(), pInterceptionCityPlot, kAttacker.getOwner());
+			}
+
 			return;
 		}
 	}
@@ -2685,6 +2697,8 @@ uint CvUnitCombat::ApplyNuclearExplosionDamage(const CvCombatMemberEntry* pkDama
 					Localization::String strBuffer = Localization::Lookup("TXT_KEY_NUKE_STRIKE_AFFECTED");
 					strBuffer << GET_PLAYER(pkAttacker->getOwner()).getCivilizationAdjectiveKey();
 					pNotifications->Add(NOTIFICATION_UNIT_DIED, strBuffer.toUTF8(), strSummary.toUTF8(), pkTargetPlot->getX(), pkTargetPlot->getY(), (int)pkAttacker->getUnitType(), pkAttacker->getOwner());
+					if (MOD_WH_MILITARY_LOG)
+						MILITARYLOG(*iter, strBuffer.toUTF8(), pkTargetPlot, pkAttacker->getOwner());
 				}
 			}
 		}
@@ -2923,6 +2937,17 @@ void CvUnitCombat::ResolveNuclearCombat(const CvCombatInfo& kCombatInfo, uint ui
 		{
 			if(ApplyNuclearExplosionDamage(kCombatInfo.getDamageMembers(), kCombatInfo.getDamageMemberCount(), pkAttacker, pkTargetPlot, kCombatInfo.getAttackNuclearLevel() - 1) > 0)
 			{
+				if (MOD_WH_MILITARY_LOG)
+				{
+					Localization::String strLog = pkTargetPlot->isOwned() ? Localization::Lookup("TXT_KEY_NUKE_STRIKE_OWNED_TERRITORY") : Localization::Lookup("TXT_KEY_NUKE_STRIKE_UNOWNED_TERRITORY");
+					strLog << GET_PLAYER(pkAttacker->getOwner()).getCivilizationShortDescription();
+					if (pkTargetPlot->isOwned())
+					{
+						strLog << GET_PLAYER(pkTargetPlot->getOwner()).getCivilizationShortDescription();
+					}
+					MILITARYLOG(pkAttacker->getOwner(), strLog.toUTF8(), pkTargetPlot, pkTargetPlot->getOwner());
+				}
+
 				if (MOD_ENABLE_ACHIEVEMENTS && pkAttacker->getOwner() == GC.getGame().getActivePlayer())
 				{
 					// Must damage someone to get the achievement.
