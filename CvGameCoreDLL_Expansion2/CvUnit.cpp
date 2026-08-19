@@ -1044,7 +1044,7 @@ void CvUnit::initWithNameOffset(int iID, UnitTypes eUnit, int iNameOffset, UnitA
 					int iNumFollowers = pCityReligions->GetNumFollowers(eLoopReligion);
 					vReligions.push_back(eLoopReligion, iNumFollowers);
 				}
-				if (!vReligions.empty())
+				if (!vReligions.empty() && vReligions.GetTotalWeight() > 0)
 				{
 					vReligions.StableSortItems();
 					eReligion = vReligions.ChooseByWeight(CvSeeder::fromRaw(0x35a97cc7).mix(iID).mix(pPlotCity->GetID()).mix(pPlotCity->getOwner()));

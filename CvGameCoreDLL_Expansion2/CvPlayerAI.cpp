@@ -1802,7 +1802,7 @@ GreatPeopleDirectiveTypes CvPlayerAI::GetDirectiveGeneral(CvUnit* pGreatGeneral)
 		for (int i = 0; i < 4; i++)
 		{
 			PromotionTypes eNegationPromotion = static_cast<PromotionTypes>(GC.getInfoTypeForString(GGNegationPromotions[i].c_str(), true));
-			if (pGreatGeneral->isHasPromotion(eNegationPromotion))
+			if (eNegationPromotion != NO_PROMOTION && pGreatGeneral->isHasPromotion(eNegationPromotion))
 				bHasGeneralNegation = true;
 		}
 
@@ -1951,7 +1951,7 @@ GreatPeopleDirectiveTypes CvPlayerAI::GetDirectiveAdmiral(CvUnit* pGreatAdmiral)
 		for (int i = 0; i < 4; i++)
 		{
 			PromotionTypes eNegationPromotion = static_cast<PromotionTypes>(GC.getInfoTypeForString(GANegationPromotions[i].c_str(), true));
-			if (pGreatAdmiral->isHasPromotion(eNegationPromotion))
+			if (eNegationPromotion != NO_PROMOTION && pGreatAdmiral->isHasPromotion(eNegationPromotion))
 				bHasAdmiralNegation = true;
 		}
 
