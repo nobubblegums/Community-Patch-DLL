@@ -794,7 +794,7 @@ CvPlayer::CvPlayer() :
 	m_pCulture = FNEW(CvPlayerCulture, c_eCiv5GameplayDLL, 0);
 
 	m_pNotifications = NULL;
-	m_pMilitaryLog = NULL; // Not serialized but re-created at every load to keep savegames light
+	m_pMilitaryLog = NULL;
 	m_pDiplomacyRequests = NULL;
 
 	m_aiPlots.clear();
@@ -45833,10 +45833,32 @@ void CvPlayer::Read(FDataStream& kStream)
 	CvStreamLoadVisitor serialVisitor(kStream);
 	Serialize(*this, serialVisitor);
 
-	if (MOD_WH_MILITARY_LOG && isHuman()) //Not serialized so shouldn't have any effect on savegames
+	const bool bShouldHaveMilitaryLog = MOD_WH_MILITARY_LOG && GetID() < MAX_MAJOR_CIVS;
+	if (bShouldHaveMilitaryLog)
 	{
-		m_pMilitaryLog = FNEW(CvEventLog, c_eCiv5GameplayDLL, 0);
+		if (!m_pMilitaryLog)
+		{
+			m_pMilitaryLog = FNEW(CvEventLog, c_eCiv5GameplayDLL, 0);
+		}
 		m_pMilitaryLog->Init(GetID());
+	}
+	else
+	{
+		SAFE_DELETE(m_pMilitaryLog);
+	}
+
+	if (GC.getSaveVersion() >= CvGlobals::SAVE_VERSION_MILITARY_LOG)
+	{
+		if (m_pMilitaryLog)
+		{
+			m_pMilitaryLog->Read(kStream);
+		}
+		else
+		{
+			CvEventLog kDiscardedLog;
+			kDiscardedLog.Init(GetID());
+			kDiscardedLog.Read(kStream);
+		}
 	}
 
 	if(!isBarbarian())
@@ -45874,6 +45896,15 @@ void CvPlayer::Write(FDataStream& kStream) const
 	// Perform shared serialize
 	CvStreamSaveVisitor serialVisitor(kStream);
 	Serialize(*this, serialVisitor);
+
+	if (m_pMilitaryLog)
+	{
+		m_pMilitaryLog->Write(kStream);
+	}
+	else
+	{
+		CvEventLog::WriteEmpty(kStream);
+	}
 }
 
 void CvPlayer::createGreatGeneral(UnitTypes eGreatPersonUnit, int iX, int iY, bool bIsFree)

@@ -4,6 +4,7 @@
 #define CIV5_EVENTLOG_H
 
 class CvPlayer;
+class FDataStream;
 
 class CvEventLog
 {
@@ -13,6 +14,9 @@ public:
 
 	void Init(PlayerTypes ePlayer);
 	void Uninit(void);
+	void Read(FDataStream& kStream);
+	void Write(FDataStream& kStream) const;
+	static void WriteEmpty(FDataStream& kStream);
 
 	bool Add(const char* szMessage, PlayerTypes eOtherPlayerID = NO_PLAYER, int iX = -1, int iY = -1, int iData1 = -1, int iData2 = -1, int iData3 = -1, int iData4 = -1);
 	
@@ -45,6 +49,10 @@ public:
 protected:
 
 	bool IsLogFull() const;
+	int GetMaxStoredEvents() const;
+	void RestoreEvent(const EventLogEntry& kEntry);
+	static void ReadEntry(FDataStream& kStream, EventLogEntry& kEntry);
+	static void WriteEntry(FDataStream& kStream, const EventLogEntry& kEntry);
 	void RemoveOldestEvent();
 	void IncrementBeginIndex();
 	void IncrementEndIndex();
