@@ -65,20 +65,6 @@ The Squads UI allows renaming of squads, removing all units from a squad, removi
     <ModBlockers>
       <Association>
         <Type>Mod</Type>
-        <Name>Linked and Group Unit Movement for VP-noEUI </Name>
-        <Id>24923240-e4fb-4bf6-link-6e5b6cf4d3c2</Id>
-        <MinVersion>0</MinVersion>
-        <MaxVersion>999</MaxVersion>
-      </Association>
-      <Association>
-        <Type>Mod</Type>
-        <Name>Linked and Group Unit Movement for VP-EUI </Name>
-        <Id>24923240-e4fb-4bf6-link-6e5b6cf4d3c2</Id>
-        <MinVersion>0</MinVersion>
-        <MaxVersion>999</MaxVersion>
-      </Association>
-      <Association>
-        <Type>Mod</Type>
         <Name>Squads for VP</Name>
         <Id>59c70c09-d8ec-4856-b012-33b43b4f98fc</Id>
         <MinVersion>0</MinVersion>

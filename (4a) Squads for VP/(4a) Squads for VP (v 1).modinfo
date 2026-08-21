@@ -28,8 +28,6 @@ The Squads UI allows renaming of squads, removing all units from a squad, removi
     <Mod id="8411a7a8-dad3-4622-a18e-fcc18324c799" minversion="17" maxversion="999" title="(2) Vox Populi" />
   </References>
   <Blocks>
-    <Mod id="24923240-e4fb-4bf6-link-6e5b6cf4d3c2" minversion="0" maxversion="999" title="Linked and Group Unit Movement for VP-noEUI " />
-    <Mod id="24923240-e4fb-4bf6-link-6e5b6cf4d3c2" minversion="0" maxversion="999" title="Linked and Group Unit Movement for VP-EUI " />
     <Mod id="59c70c09-d8ec-4856-b012-33b43b4f98fc" minversion="0" maxversion="999" title="Squads for VP" />
   </Blocks>
   <Files>

@@ -114,7 +114,7 @@ void CvUnitMission::PushMission(CvUnit* hUnit, MissionTypes eMission, int iData1
 		//keep the path cache if this is a move mission!
 		hUnit->ClearMissionQueue(eMission == CvTypes::getMISSION_MOVE_TO());
 
-		if (MOD_LINKED_MOVEMENT && hUnit->IsGrouped()) {
+		if (MOD_QUICK_GROUP_MOVEMENT && hUnit->IsGrouped()) {
 			hUnit->SetIsGrouped(false);
 		}
 	}
@@ -547,7 +547,7 @@ void CvUnitMission::ContinueMission(CvUnit* hUnit, int iSteps)
 						else //cannot move or no need to move
 						{
 							bDone = true;
-							if (MOD_LINKED_MOVEMENT && hUnit->IsGrouped()) {
+							if (MOD_QUICK_GROUP_MOVEMENT && hUnit->IsGrouped()) {
 								hUnit->SetIsGrouped(false);
 							}
 
