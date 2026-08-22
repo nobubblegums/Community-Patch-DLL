@@ -853,7 +853,6 @@ public:
 	bool IsGrouped() const;
 	void SetIsGrouped(bool bValue);
 	void SetLinkedUnits(const UnitIdContainer& LinkedUnits);
-	UnitIdContainer GetLinkedUnits();
 	int GetLinkedMaxMoves() const;
 	void SetLinkedMaxMoves(int iValue);
 	CvUnit* GetLinkedLeaderUnit() const;

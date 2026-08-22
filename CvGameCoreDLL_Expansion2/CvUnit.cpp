@@ -14947,13 +14947,6 @@ void CvUnit::SetLinkedUnits(const UnitIdContainer& LinkedUnits)
 }
 
 //	--------------------------------------------------------------------------------
-UnitIdContainer CvUnit::GetLinkedUnits()
-{
-	VALIDATE_OBJECT();
-		return m_LinkedUnitIDs;
-}
-
-//	--------------------------------------------------------------------------------
 int CvUnit::GetLinkedMaxMoves()	const
 {
 	VALIDATE_OBJECT();
@@ -14997,15 +14990,13 @@ bool CvUnit::CollectLinkedFollowers(vector<CvUnit*>& vLinkedUnits) const
 	if (!IsLinked() || !IsLinkedLeader() || plot() == NULL)
 		return false;
 
-	std::set<int> seenUnitIDs;
 	for (UnitIdContainer::const_iterator it = m_LinkedUnitIDs.begin(); it != m_LinkedUnitIDs.end(); ++it)
 	{
 		const int iUnitID = *it;
 		CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-		if (iUnitID == GetID() || !seenUnitIDs.insert(iUnitID).second || pLinkedUnit == NULL || pLinkedUnit->isDelayedDeath() ||
-			pLinkedUnit->getOwner() != m_eOwner || !pLinkedUnit->IsLinked() || pLinkedUnit->IsLinkedLeader() ||
+		if (pLinkedUnit == NULL || pLinkedUnit->isDelayedDeath() ||
+			!pLinkedUnit->IsLinked() || pLinkedUnit->IsLinkedLeader() ||
 			pLinkedUnit->GetLinkedLeaderID() != GetID() || pLinkedUnit->plot() != plot() ||
-			pLinkedUnit->getDomainType() == DOMAIN_AIR || pLinkedUnit->isTrade() ||
 			((getDomainType() == DOMAIN_SEA || isEmbarked()) != (pLinkedUnit->getDomainType() == DOMAIN_SEA || pLinkedUnit->isEmbarked())))
 		{
 			vLinkedUnits.clear();
