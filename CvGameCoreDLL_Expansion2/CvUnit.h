@@ -854,13 +854,15 @@ public:
 	bool IsGrouped() const;
 	void SetIsGrouped(bool bValue);
 	void SetLinkedUnits(const UnitIdContainer& LinkedUnits);
-	UnitIdContainer GetLinkedUnits();
 	int GetLinkedMaxMoves() const;
 	void SetLinkedMaxMoves(int iValue);
-	bool CanLinkUnits();
+	CvUnit* GetLinkedLeaderUnit() const;
+	bool CollectLinkedFollowers(std::vector<CvUnit*>& vLinkedUnits) const;
+	void ClearLinkedGroupState();
+	bool CanLinkUnits() const;
 	void LinkUnits();
 	void UnlinkUnits();
-	void MoveLinkedLeader(CvPlot* pDestPlot);
+	void MoveLinkedLeader(CvPlot* pDestPlot, bool bAppend = false);
 	void DoGroupMovement(CvPlot* pDestPlot);
 #endif
 

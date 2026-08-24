@@ -2584,8 +2584,10 @@ void CvUnit::kill(bool bDelay, PlayerTypes ePlayer /*= NO_PLAYER*/)
 		}
 		else if (IsLinked())
 		{
-			CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-			pLinkedLeader->SetIsLinkedLeader(false);
+			CvUnit* pLinkedLeader = GetLinkedLeaderUnit();
+			if (pLinkedLeader != NULL)
+				pLinkedLeader->SetIsLinkedLeader(false);
+			SetIsLinked(false);
 		}
 	}
 
@@ -3210,7 +3212,8 @@ void CvUnit::doTurn()
 	}
 
 	// prevent linked units in movement from asking orders
-	if (MOD_LINKED_MOVEMENT && IsLinked() && !IsLinkedLeader())
+	const bool bIsWorker = AI_getUnitAIType() == UNITAI_WORKER || AI_getUnitAIType() == UNITAI_WORKER_SEA;
+	if (MOD_LINKED_MOVEMENT && IsLinked() && !IsLinkedLeader() && !bIsWorker)
 	{
 		SetTurnProcessed(true);
 	}
@@ -4514,6 +4517,14 @@ bool CvUnit::canDoCommand(CommandTypes eCommand, int iData1, int iData2, bool bT
 		return true;
 		break;
 
+	case COMMAND_LINK_UNITS:
+		return MOD_LINKED_MOVEMENT && CanLinkUnits();
+		break;
+
+	case COMMAND_UNLINK_UNITS:
+		return MOD_LINKED_MOVEMENT && IsLinked();
+		break;
+
 	default:
 		ASSERT(false);
 		break;
@@ -4579,6 +4590,16 @@ void CvUnit::doCommand(CommandTypes eCommand, int iData1, int iData2)
 
 		case COMMAND_HOTKEY:
 			setHotKeyNumber(iData1);
+			break;
+
+		case COMMAND_LINK_UNITS:
+			LinkUnits();
+			DLLUI->setDirty(UnitInfo_DIRTY_BIT, true);
+			break;
+
+		case COMMAND_UNLINK_UNITS:
+			UnlinkUnits();
+			DLLUI->setDirty(UnitInfo_DIRTY_BIT, true);
 			break;
 
 		default:
@@ -5465,6 +5486,23 @@ void CvUnit::move(CvPlot& targetPlot, bool bShow, bool bNoMovementCost)
 	if (pOldPlot == &targetPlot)
 		return;
 
+	vector<CvUnit*> vLinkedFollowers;
+	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader())
+	{
+		if (!CollectLinkedFollowers(vLinkedFollowers))
+		{
+			ClearLinkedGroupState();
+			return;
+		}
+
+		for (size_t i = 0; i < vLinkedFollowers.size(); i++)
+		{
+			CvUnit* pFollower = vLinkedFollowers[i];
+			if (!pFollower->canMove() || !pFollower->canMoveInto(targetPlot, CvUnit::MOVEFLAG_DESTINATION))
+				return;
+		}
+	}
+
 	//will never be more than we have left!
 	int iMoveCost = bNoMovementCost ? 0 : targetPlot.movementCost(this, plot(), getMoves());
 
@@ -5488,38 +5526,17 @@ void CvUnit::move(CvPlot& targetPlot, bool bShow, bool bNoMovementCost)
 		}
 	}
 
-	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader()) // moving the whole stack, one plot at a time
-	{
-		UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-		bool bCanDoLinkedMove = true;
-		vector<CvUnit*> LinkedUnits;
-		for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
-		{
-			CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
-			if (!pLinkedUnit->canMoveInto(targetPlot, CvUnit::MOVEFLAG_DESTINATION)) {
-				bCanDoLinkedMove = false;
-				break;
-			}
-			else {
-				LinkedUnits.push_back(pLinkedUnit);
-			}
-		}
-		if (bCanDoLinkedMove)
-		{
-			setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
-
-			for (int iI = 0; iI < (int)LinkedUnits.size(); iI++)
-			{
-				CvUnit* pLinkedUnit = LinkedUnits[iI];
-				pLinkedUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), targetPlot.getX(), targetPlot.getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_KEEP_LINK);
-			}
-		}
-	}
 	//important, first do the move, then subtract the cost
 	//that way setXY can tell whether it's the initial move this turn
-	else
+	setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
+
+	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader())
 	{
-		setXY(targetPlot.getX(), targetPlot.getY(), true, true, bShow && targetPlot.isVisibleToWatchingHuman(), bShow);
+		for (size_t i = 0; i < vLinkedFollowers.size(); i++)
+		{
+			CvUnit* pFollower = vLinkedFollowers[i];
+			pFollower->PushMission(CvTypes::getMISSION_MOVE_TO(), targetPlot.getX(), targetPlot.getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_KEEP_LINK);
+		}
 	}
 
 	if (!targetPlot.IsRestoreMoves())
@@ -14841,7 +14858,9 @@ int CvUnit::maxMoves() const
 {
 	if (plot() == NULL)
 		return 0;
-	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && (IsLinked() || IsGrouped() ))
+	if ((MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinked())
+		return GetLinkedMaxMoves();
+	if (MOD_QUICK_GROUP_MOVEMENT && IsGrouped())
 		return GetLinkedMaxMoves();
 	// WARNING: Depends on the current embark state of the unit!
 	if (plot()->getOwner() == getOwner())
@@ -14915,22 +14934,13 @@ void CvUnit::SetIsLinkedLeader(bool bValue)
 {
 	VALIDATE_OBJECT();
 
-	if (m_bIsLinkedLeader != bValue)
+	if (!bValue && m_bIsLinkedLeader)
 	{
-		m_bIsLinkedLeader = bValue;
-
-		if (!bValue)
-		{
-			UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-			for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
-			{
-				CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
-				pLinkedUnit->SetIsLinked(false);
-			}
-
-			SetIsLinked(false);
-			m_LinkedUnitIDs.clear();
-		}
+		ClearLinkedGroupState();
+	}
+	else if (bValue)
+	{
+		m_bIsLinkedLeader = true;
 	}
 }
 
@@ -14969,13 +14979,6 @@ void CvUnit::SetLinkedUnits(const UnitIdContainer& LinkedUnits)
 }
 
 //	--------------------------------------------------------------------------------
-UnitIdContainer CvUnit::GetLinkedUnits()
-{
-	VALIDATE_OBJECT();
-		return m_LinkedUnitIDs;
-}
-
-//	--------------------------------------------------------------------------------
 int CvUnit::GetLinkedMaxMoves()	const
 {
 	VALIDATE_OBJECT();
@@ -15003,9 +15006,65 @@ void CvUnit::SetLinkedLeaderID(int iLinkedLeaderID)
 	m_iLinkedLeaderID = iLinkedLeaderID;
 }
 
+//	--------------------------------------------------------------------------------
+CvUnit* CvUnit::GetLinkedLeaderUnit() const
+{
+	VALIDATE_OBJECT();
+	return GetLinkedLeaderID() == -1 ? NULL : GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
+}
 
 //	--------------------------------------------------------------------------------
-bool CvUnit::CanLinkUnits()
+bool CvUnit::CollectLinkedFollowers(vector<CvUnit*>& vLinkedUnits) const
+{
+	VALIDATE_OBJECT();
+	vLinkedUnits.clear();
+
+	if (!IsLinked() || !IsLinkedLeader() || plot() == NULL)
+		return false;
+
+	for (UnitIdContainer::const_iterator it = m_LinkedUnitIDs.begin(); it != m_LinkedUnitIDs.end(); ++it)
+	{
+		const int iUnitID = *it;
+		CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(iUnitID);
+		if (pLinkedUnit == NULL || pLinkedUnit->isDelayedDeath() ||
+			!pLinkedUnit->IsLinked() || pLinkedUnit->IsLinkedLeader() ||
+			pLinkedUnit->GetLinkedLeaderID() != GetID() || pLinkedUnit->plot() != plot() ||
+			((getDomainType() == DOMAIN_SEA || isEmbarked()) != (pLinkedUnit->getDomainType() == DOMAIN_SEA || pLinkedUnit->isEmbarked())))
+		{
+			vLinkedUnits.clear();
+			return false;
+		}
+
+		vLinkedUnits.push_back(pLinkedUnit);
+	}
+
+	return !vLinkedUnits.empty();
+}
+
+//	--------------------------------------------------------------------------------
+void CvUnit::ClearLinkedGroupState()
+{
+	VALIDATE_OBJECT();
+	UnitIdContainer LinkedUnitIDs = m_LinkedUnitIDs;
+	m_bIsLinkedLeader = false;
+	m_LinkedUnitIDs.clear();
+
+	for (UnitIdContainer::const_iterator it = LinkedUnitIDs.begin(); it != LinkedUnitIDs.end(); ++it)
+	{
+		CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(*it);
+		if (pLinkedUnit != NULL && pLinkedUnit != this && pLinkedUnit->GetLinkedLeaderID() == GetID())
+		{
+			pLinkedUnit->SetIsLinked(false);
+			pLinkedUnit->SetLinkedLeaderID(-1);
+		}
+	}
+
+	SetIsLinked(false);
+	SetLinkedLeaderID(-1);
+}
+
+//	--------------------------------------------------------------------------------
+bool CvUnit::CanLinkUnits() const
 {
 	VALIDATE_OBJECT();
 
@@ -15081,16 +15140,31 @@ void CvUnit::LinkUnits()
 				if (iLoopMaxMoves < iLowestMaxMoves) {
 					iLowestMaxMoves = iLoopMaxMoves;
 				}
-				if (!bLeaderAssigned && !bIsOnSea && pLoopUnit->AI_getUnitAIType() == UNITAI_WORKER) { // workers are prioritized, allows them to ask for orders
-					pLoopUnit->SetIsLinkedLeader(true);
-					pLinkedLeader = pLoopUnit;
-					bLeaderAssigned = true;
-				}
 			}
 		}
 	}
 
-	if (!bLeaderAssigned)	{ // no workers found, ordering unit gets leadership
+	struct LinkedUnitIDLess
+	{
+		bool operator()(const CvUnit* pA, const CvUnit* pB) const
+		{
+			return pA->GetID() < pB->GetID();
+		}
+	};
+	std::stable_sort(v_unitvector.begin(), v_unitvector.end(), LinkedUnitIDLess());
+
+	for (int iI = 0; iI < (int)v_unitvector.size(); iI++)
+	{
+		CvUnit* pUnit = v_unitvector[iI];
+		if (!bLeaderAssigned && pUnit->IsCombatUnit())
+		{
+			pUnit->SetIsLinkedLeader(true);
+			pLinkedLeader = pUnit;
+			bLeaderAssigned = true;
+		}
+	}
+
+	if (!bLeaderAssigned)	{ // no combat unit found, ordering unit gets leadership
 		SetIsLinkedLeader(true);
 	}
 
@@ -15109,11 +15183,18 @@ void CvUnit::LinkUnits()
 			LinkedUnitIDs.push_back(pUnit->GetID());
 			pUnit->SetLinkedLeaderID(pLinkedLeader->GetID());
 
-			if (pLoopUnit->canFortify(pCurrentPlot)) {
-				pLoopUnit->PushMission(CvTypes::getMISSION_FORTIFY());
+			const bool bIsWorker = pUnit->AI_getUnitAIType() == UNITAI_WORKER || pUnit->AI_getUnitAIType() == UNITAI_WORKER_SEA;
+			if (bIsWorker && pUnit->getBuildType() != NO_BUILD) {
+				// Keep existing work until the linked group is actually ordered to move.
+			}
+			else if (pUnit->canFortify(pCurrentPlot)) {
+				pUnit->PushMission(CvTypes::getMISSION_FORTIFY());
+			}
+			else if (bIsWorker) {
+				pUnit->PushMission(CvTypes::getMISSION_SKIP());
 			}
 			else {
-				pLoopUnit->PushMission(CvTypes::getMISSION_SLEEP());
+				pUnit->PushMission(CvTypes::getMISSION_SLEEP());
 			}
 		}
 	}
@@ -15134,19 +15215,26 @@ void CvUnit::UnlinkUnits() //mostly for the lua call
 			SetIsLinkedLeader(false); // the actual unlinking happens here
 		}
 		else {
-			CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-			pLinkedLeader->SetIsLinkedLeader(false);
+			CvUnit* pLinkedLeader = GetLinkedLeaderUnit();
+			if (pLinkedLeader != NULL)
+				pLinkedLeader->SetIsLinkedLeader(false);
+			SetIsLinked(false);
 		}
 	}
 }
 
 //	--------------------------------------------------------------------------------
-void CvUnit::MoveLinkedLeader(CvPlot* pDestPlot)
+void CvUnit::MoveLinkedLeader(CvPlot* pDestPlot, bool bAppend)
 {
 	VALIDATE_OBJECT();
 
-	CvUnit* pLinkedLeader = GET_PLAYER(m_eOwner).getUnit(GetLinkedLeaderID());
-	pLinkedLeader->PushMission(CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED);
+	CvUnit* pLinkedLeader = IsLinkedLeader() ? this : GetLinkedLeaderUnit();
+	if (pDestPlot == NULL || pLinkedLeader == NULL || pLinkedLeader->isDelayedDeath())
+	{
+		UnlinkUnits();
+		return;
+	}
+	gDLL->sendPushMission(pLinkedLeader->GetID(), CvTypes::getMISSION_MOVE_TO(), pDestPlot->getX(), pDestPlot->getY(), CvUnit::MOVEFLAG_DESTINATION | CvUnit::MOVEFLAG_ABORT_IF_NEW_ENEMY_REVEALED | CvUnit::MOVEFLAG_KEEP_LINK, bAppend);
 
 }
 //	--------------------------------------------------------------------------------
@@ -15712,10 +15800,15 @@ void CvUnit::TryEndSquadMovement()
 			// so handle them alongside the leader
 			if (IsLinkedLeader())
 			{
-				UnitIdContainer LinkedUnitIDs = GetLinkedUnits();
-				for (int iI = 0; iI < (int)LinkedUnitIDs.size(); iI++)
+				vector<CvUnit*> LinkedUnits;
+				if (!CollectLinkedFollowers(LinkedUnits))
 				{
-					CvUnit* pLinkedUnit = GET_PLAYER(m_eOwner).getUnit(LinkedUnitIDs[iI]);
+					ClearLinkedGroupState();
+					LinkedUnits.clear();
+				}
+				for (size_t iI = 0; iI < LinkedUnits.size(); iI++)
+				{
+					CvUnit* pLinkedUnit = LinkedUnits[iI];
 					if (pLinkedUnit->canSentry(plot()))
 					{
 						gDLL->sendPushMission(pLinkedUnit->GetID(), CvTypes::getMISSION_ALERT(), 0, 0, 0, false);
@@ -30101,7 +30194,8 @@ bool CvUnit::ReadyToMove() const
 		return false;
 	}
 
-	if (MOD_LINKED_MOVEMENT && IsLinked() && !IsLinkedLeader()) // do not ask orders for units following another
+	const bool bIsWorker = AI_getUnitAIType() == UNITAI_WORKER || AI_getUnitAIType() == UNITAI_WORKER_SEA;
+	if (MOD_LINKED_MOVEMENT && IsLinked() && !IsLinkedLeader() && !bIsWorker) // do not ask orders for non-worker units following another
 	{
 		return false;
 	}
@@ -30573,7 +30667,10 @@ bool CvUnit::UnitMove(CvPlot* pPlot, bool bCombat, CvUnit* pCombatUnit, bool bEn
 	{
 		// execute move
 		LOG_UNIT_MOVES_MESSAGE_OSTR(std::string("UnitMove() : player ") << GET_PLAYER(getOwner()).getName(); << std::string(" ") << getName() << std::string(" id=") << GetID() << std::string(" moving to ") << pPlot->getX() << std::string(", ") << pPlot->getY());
+		const bool bWasLinkedLeader = (MOD_LINKED_MOVEMENT || MOD_SQUADS) && IsLinkedLeader();
 		move(*pPlot, iDistance == 1, bIsCombatUnit && IsFreeAttackMoves());
+		if (bWasLinkedLeader)
+			bCanMoveIntoPlot = atPlot(*pPlot);
 	}
 	else
 	{
@@ -30933,7 +31030,7 @@ bool CvUnit::CanDoInterfaceMode(InterfaceModeTypes eInterfaceMode, bool bTestVis
 		break;
 
 	case INTERFACEMODE_MOVE_TO_ALL:
-		if (MOD_LINKED_MOVEMENT && IsCombatUnit() && getDomainType() != DOMAIN_AIR && GetNumOwningPlayerUnitsAdjacent() > 0)
+		if (MOD_QUICK_GROUP_MOVEMENT && IsCombatUnit() && getDomainType() != DOMAIN_AIR && GetNumOwningPlayerUnitsAdjacent() > 0)
 		{
 			return true;
 		}

@@ -550,6 +550,8 @@ int CvLuaEnums::pRegister(lua_State* L)
 	RegisterEnum(COMMAND_DELETE);
 	RegisterEnum(COMMAND_GIFT);
 	RegisterEnum(COMMAND_HOTKEY);
+	RegisterEnum(COMMAND_LINK_UNITS);
+	RegisterEnum(COMMAND_UNLINK_UNITS);
 	RegisterEnum(NUM_COMMAND_TYPES);
 	EnumEnd(L);
 

@@ -2623,8 +2623,9 @@ int CvLuaUnit::lMoveLinkedLeader(lua_State* L)
 {
 	CvUnit* pkUnit = GetInstance(L);
 	CvPlot* pkDestPlot = CvLuaPlot::GetInstance(L, 2);
+	const bool bAppend = lua_toboolean(L, 3);
 
-	pkUnit->MoveLinkedLeader(pkDestPlot);
+	pkUnit->MoveLinkedLeader(pkDestPlot, bAppend);
 	return 0;
 }
 //------------------------------------------------------------------------------
