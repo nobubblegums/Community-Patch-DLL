@@ -69,6 +69,7 @@ extern "C" __declspec(dllimport) long __stdcall CoCreateGuid(GUID* pguid);
 #include "CvCityManager.h"
 #include "CvPlayerManager.h"
 #include "CvDllContext.h"
+#include "CvConnectionService.h"
 
 #include "CvSpanSerialization.h"
 #include "CvEnumMapSerialization.h"
@@ -461,6 +462,11 @@ bool CvGame::init2()
 	initScoreCalculation();
 	initSpyThreshold();
 	setFinalInitialized(true);
+
+	if (MOD_IPC_CHANNEL)
+	{
+		CvConnectionService::GetInstance().Setup();
+	}
 
 	if (MOD_EVENTS_TERRAFORMING)
 		GAMEEVENTINVOKE_HOOK(GAMEEVENT_TerraformingMap, TERRAFORMINGEVENT_LOAD, 0);
@@ -1093,6 +1099,11 @@ void CvGame::DoGameStarted()
 //	--------------------------------------------------------------------------------
 void CvGame::uninit()
 {
+	if (MOD_IPC_CHANNEL)
+	{
+		CvConnectionService::GetInstance().Shutdown();
+	}
+
 	CvGoodyHuts::Uninit();
 	CvBarbarians::Uninit();
 
@@ -1613,6 +1624,11 @@ bool ExternalPause()
 //	---------------------------------------------------------------------------
 void CvGame::update()
 {
+	if (MOD_IPC_CHANNEL)
+	{
+		CvConnectionService::GetInstance().ProcessMessages();
+	}
+
 	if(IsWaitingForBlockingInput())
 	{
 		if(!GC.GetEngineUserInterface()->isDiploActive())

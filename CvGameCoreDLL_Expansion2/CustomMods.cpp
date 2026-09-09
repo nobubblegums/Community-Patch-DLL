@@ -595,6 +595,7 @@ int CustomMods::getOption(const string& sOption, int defValue)
 		MOD_OPT_CACHE(NOT_FOR_SALE);
 		MOD_OPT_CACHE(ROUTE_PLANNER);
 		MOD_OPT_CACHE(BALANCE_CORE_JFD);
+		MOD_OPT_CACHE(IPC_CHANNEL);
 
 		m_bInit = true;
 	}
