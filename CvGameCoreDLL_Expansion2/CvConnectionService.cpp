@@ -10,15 +10,21 @@
 #include "CvGameCoreDLLPCH.h"
 #include "CvConnectionService.h"
 
+#include "../ThirdPartyLibs/ArduinoJson.hpp"
 #include "FireWorks/FILogFile.h"
 #include "ICvDLLScriptSystem.h"
 #include "Lua/CvLuaSupport.h"
 
 #include <algorithm>
+#include <cfloat>
+#include <climits>
+#include <cmath>
 #include <cstring>
 #include <cstdlib>
 #include <iomanip>
 #include <sstream>
+
+using namespace ArduinoJson;
 
 namespace
 {
@@ -29,6 +35,9 @@ namespace
 	const size_t kOutgoingChunkSize = 32768;
 	const size_t kMaximumMessageBuffer = 8 * 1024 * 1024;
 	const size_t kMaximumLogMessage = 3800;
+	const size_t kJsonDocumentCapacity = 1024 * 1024;
+	const size_t kMaximumErrorMessage = 8192;
+	const int kMaximumLuaTableDepth = 32;
 
 	void ClosePipeHandle(HANDLE hPipe)
 	{
@@ -374,10 +383,528 @@ void CvConnectionService::ProcessMessages()
 
 bool CvConnectionService::RouteMessage(const std::string& message)
 {
-	// The protocol router is added in ipc-lua-protocol.  This boundary is
-	// intentionally on the game thread even in the transport-only commit.
-	UNUSED_VARIABLE(message);
+	DynamicJsonDocument request(kJsonDocumentCapacity);
+	DeserializationError parseError = deserializeJson(request, message);
+	if (parseError)
+	{
+		std::string details("Invalid JSON request: ");
+		details.append(parseError.c_str());
+		SendProtocolError("", "INVALID_JSON", details);
+		return true;
+	}
+
+	JsonVariant typeValue = request["type"];
+	const char* rawType = typeValue.as<const char*>();
+	if (rawType == NULL)
+	{
+		SendProtocolError("", "INVALID_REQUEST", "Request is missing a string 'type' field");
+		return true;
+	}
+
+	std::string messageType(rawType);
+	JsonVariant idValue = request["id"];
+	const char* rawId = idValue.as<const char*>();
+	std::string id = rawId != NULL ? rawId : "";
+	if (id.size() > 1024)
+	{
+		id.resize(1024);
+	}
+
+	if (messageType == "lua_execute")
+	{
+		JsonVariant scriptValue = request["script"];
+		const char* rawScript = scriptValue.as<const char*>();
+		if (rawScript == NULL || rawId == NULL)
+		{
+			SendProtocolError(id, "INVALID_REQUEST", "lua_execute requires string fields 'script' and 'id'");
+			return true;
+		}
+
+		// ArduinoJson string accessors alias the request document.  Copy both
+		// values before any handler can allocate another document or re-enter the
+		// router, so no handler retains a pointer into a mutable JSON buffer.
+		std::string script(rawScript);
+		HandleLuaExecute(script, id);
+		return true;
+	}
+
+	SendProtocolError(id, "UNSUPPORTED_MESSAGE", "Only lua_execute is supported by this IPC overlay");
 	return true;
+}
+
+namespace
+{
+	void SetJsonNull(JsonVariant parent, const char* key)
+	{
+		if (key != NULL && parent.is<JsonObject>())
+		{
+			parent[key] = (char*)0;
+		}
+		else if (parent.is<JsonArray>())
+		{
+			parent.add((char*)0);
+		}
+		else
+		{
+			parent.set((char*)0);
+		}
+	}
+
+	void SetJsonBoolean(JsonVariant parent, const char* key, bool value)
+	{
+		if (key != NULL && parent.is<JsonObject>())
+		{
+			parent[key] = value;
+		}
+		else if (parent.is<JsonArray>())
+		{
+			parent.add(value);
+		}
+		else
+		{
+			parent.set(value);
+		}
+	}
+
+	void SetJsonInteger(JsonVariant parent, const char* key, int value)
+	{
+		if (key != NULL && parent.is<JsonObject>())
+		{
+			parent[key] = value;
+		}
+		else if (parent.is<JsonArray>())
+		{
+			parent.add(value);
+		}
+		else
+		{
+			parent.set(value);
+		}
+	}
+
+	void SetJsonNumber(JsonVariant parent, const char* key, double value)
+	{
+		if (key != NULL && parent.is<JsonObject>())
+		{
+			parent[key] = value;
+		}
+		else if (parent.is<JsonArray>())
+		{
+			parent.add(value);
+		}
+		else
+		{
+			parent.set(value);
+		}
+	}
+
+	void SetJsonString(JsonVariant parent, const char* key, const char* value)
+	{
+		if (value == NULL)
+		{
+			SetJsonNull(parent, key);
+		}
+		else if (key != NULL && parent.is<JsonObject>())
+		{
+			parent[key] = value;
+		}
+		else if (parent.is<JsonArray>())
+		{
+			parent.add(value);
+		}
+		else
+		{
+			parent.set(value);
+		}
+	}
+
+	void SetJsonString(JsonVariant parent, const char* key, const std::string& value)
+	{
+		SetJsonString(parent, key, value.c_str());
+	}
+
+	void ConvertLuaToJsonValue(lua_State* state, int index, JsonVariant parent, const char* key, int depth);
+
+	void ConvertLuaValuesToJson(lua_State* state, int firstIndex, int valueCount, DynamicJsonDocument& response)
+	{
+		if (valueCount <= 0)
+		{
+			response["result"] = (char*)0;
+		}
+		else if (valueCount == 1)
+		{
+			ConvertLuaToJsonValue(state, firstIndex, response.as<JsonObject>(), "result", 0);
+		}
+		else
+		{
+			JsonArray result = response.createNestedArray("result");
+			if (!result)
+			{
+				return;
+			}
+			for (int i = 0; i < valueCount; ++i)
+			{
+				ConvertLuaToJsonValue(state, firstIndex + i, result, NULL, 0);
+			}
+		}
+	}
+
+	void ConvertLuaToJsonValue(lua_State* state, int index, JsonVariant parent, const char* key, int depth)
+	{
+		if (index < 0 && index > LUA_REGISTRYINDEX)
+		{
+			index = lua_gettop(state) + index + 1;
+		}
+
+		const int type = lua_type(state, index);
+		if (type == LUA_TTABLE && depth >= kMaximumLuaTableDepth)
+		{
+			SetJsonString(parent, key, "<table depth limit>");
+			return;
+		}
+
+		switch (type)
+		{
+		case LUA_TNIL:
+			SetJsonNull(parent, key);
+			break;
+
+		case LUA_TBOOLEAN:
+			SetJsonBoolean(parent, key, lua_toboolean(state, index) != 0);
+			break;
+
+		case LUA_TNUMBER:
+		{
+			const double number = lua_tonumber(state, index);
+			if (number != number || number > DBL_MAX || number < -DBL_MAX)
+			{
+				SetJsonNull(parent, key);
+			}
+			else if (std::floor(number) == number && number >= INT_MIN && number <= INT_MAX)
+			{
+				SetJsonInteger(parent, key, static_cast<int>(number));
+			}
+			else
+			{
+				SetJsonNumber(parent, key, number);
+			}
+			break;
+		}
+
+		case LUA_TSTRING:
+			SetJsonString(parent, key, lua_tostring(state, index));
+			break;
+
+		case LUA_TTABLE:
+		{
+			const int tableIndex = index;
+			bool isArray = true;
+			int keyCount = 0;
+			int maximumIndex = 0;
+
+			lua_pushnil(state);
+			while (lua_next(state, tableIndex) != 0)
+			{
+				++keyCount;
+				if (lua_type(state, -2) != LUA_TNUMBER)
+				{
+					isArray = false;
+				}
+				else
+				{
+					const double numericKey = lua_tonumber(state, -2);
+					if (std::floor(numericKey) != numericKey || numericKey < 1 || numericKey > INT_MAX)
+					{
+						isArray = false;
+					}
+					else if (static_cast<int>(numericKey) > maximumIndex)
+					{
+						maximumIndex = static_cast<int>(numericKey);
+					}
+				}
+				lua_pop(state, 1);
+			}
+
+			if (keyCount == 0 || keyCount != maximumIndex)
+			{
+				isArray = false;
+			}
+			if (isArray)
+			{
+				for (int i = 1; i <= maximumIndex; ++i)
+				{
+					lua_pushnumber(state, static_cast<lua_Number>(i));
+					lua_gettable(state, tableIndex);
+					if (lua_isnil(state, -1))
+					{
+						isArray = false;
+						lua_pop(state, 1);
+						break;
+					}
+					lua_pop(state, 1);
+				}
+			}
+
+			if (isArray)
+			{
+				JsonArray array;
+				if (key != NULL && parent.is<JsonObject>())
+				{
+					array = parent.as<JsonObject>().createNestedArray(key);
+				}
+				else if (parent.is<JsonArray>())
+				{
+					array = parent.as<JsonArray>().createNestedArray();
+				}
+				else
+				{
+					array = parent.to<JsonArray>();
+				}
+
+				if (!array)
+				{
+					SetJsonNull(parent, key);
+					break;
+				}
+
+				for (int i = 1; i <= maximumIndex; ++i)
+				{
+					lua_pushnumber(state, static_cast<lua_Number>(i));
+					lua_gettable(state, tableIndex);
+					ConvertLuaToJsonValue(state, -1, array, NULL, depth + 1);
+					lua_pop(state, 1);
+				}
+			}
+			else
+			{
+				JsonObject object;
+				if (key != NULL && parent.is<JsonObject>())
+				{
+					object = parent.as<JsonObject>().createNestedObject(key);
+				}
+				else if (parent.is<JsonArray>())
+				{
+					object = parent.as<JsonArray>().createNestedObject();
+				}
+				else
+				{
+					object = parent.to<JsonObject>();
+				}
+
+				if (!object)
+				{
+					SetJsonNull(parent, key);
+					break;
+				}
+
+				lua_pushnil(state);
+				while (lua_next(state, tableIndex) != 0)
+				{
+					const int valueIndex = lua_gettop(state);
+					const int keyIndex = valueIndex - 1;
+					std::string keyText;
+
+					if (lua_type(state, keyIndex) == LUA_TSTRING)
+					{
+						const char* stringKey = lua_tostring(state, keyIndex);
+						keyText = stringKey != NULL ? stringKey : "";
+					}
+					else if (lua_type(state, keyIndex) == LUA_TNUMBER)
+					{
+						const double numericKey = lua_tonumber(state, keyIndex);
+						std::stringstream keyStream;
+						if (std::floor(numericKey) == numericKey && numericKey >= INT_MIN && numericKey <= INT_MAX)
+						{
+							keyStream << static_cast<int>(numericKey);
+						}
+						else
+						{
+							keyStream << std::setprecision(17) << numericKey;
+						}
+						keyText = keyStream.str();
+					}
+					else if (lua_type(state, keyIndex) == LUA_TBOOLEAN)
+					{
+						keyText = lua_toboolean(state, keyIndex) ? "true" : "false";
+					}
+					else
+					{
+						keyText = "<";
+						keyText += lua_typename(state, lua_type(state, keyIndex));
+						keyText += ">";
+					}
+
+					if (keyText.size() > 1024)
+					{
+						keyText.resize(1024);
+					}
+					JsonVariant child = object[keyText.c_str()];
+					ConvertLuaToJsonValue(state, valueIndex, child, NULL, depth + 1);
+					lua_pop(state, 1);
+				}
+			}
+			break;
+		}
+
+		case LUA_TFUNCTION:
+		case LUA_TUSERDATA:
+		case LUA_TTHREAD:
+		case LUA_TLIGHTUSERDATA:
+		{
+			std::string description("<");
+			description += lua_typename(state, type);
+			description += ">";
+			SetJsonString(parent, key, description);
+			break;
+		}
+
+		default:
+			SetJsonNull(parent, key);
+			break;
+		}
+	}
+
+	std::string CleanLuaErrorMessage(const char* errorMessage)
+	{
+		if (errorMessage == NULL)
+		{
+			return "Unknown Lua error";
+		}
+
+		std::string cleaned(errorMessage);
+		if (cleaned.size() > kMaximumErrorMessage)
+		{
+			cleaned.resize(kMaximumErrorMessage);
+			cleaned.append(" [...truncated]");
+		}
+
+		const size_t lastColon = cleaned.rfind(':');
+		if (lastColon != std::string::npos && lastColon > 0)
+		{
+			const size_t previousColon = cleaned.rfind(':', lastColon - 1);
+			if (previousColon != std::string::npos)
+			{
+				cleaned = cleaned.substr(previousColon + 1);
+				while (!cleaned.empty() && cleaned[0] == ' ')
+				{
+					cleaned.erase(0, 1);
+				}
+			}
+		}
+		return cleaned;
+	}
+}
+
+void CvConnectionService::HandleLuaExecute(const std::string& script, const std::string& id)
+{
+	if (m_pLuaState == NULL)
+	{
+		SendProtocolError(id, "LUA_STATE_UNAVAILABLE", "The connection Lua state is unavailable");
+		return;
+	}
+
+	bool hadGameCoreLock = false;
+	if (gDLL != NULL)
+	{
+		hadGameCoreLock = gDLL->HasGameCoreLock();
+		if (hadGameCoreLock)
+		{
+			gDLL->ReleaseGameCoreLock();
+		}
+	}
+
+	const int stackBase = lua_gettop(m_pLuaState);
+	const int executionResult = luaL_dostring(m_pLuaState, script.c_str());
+	ProcessLuaResult(m_pLuaState, executionResult, id, stackBase);
+
+	if (hadGameCoreLock)
+	{
+		gDLL->GetGameCoreLock();
+	}
+}
+
+void CvConnectionService::ProcessLuaResult(lua_State* state, int executionResult, const std::string& id, int stackBase)
+{
+	DynamicJsonDocument response(kJsonDocumentCapacity);
+	try
+	{
+		response["type"] = "lua_response";
+		response["id"] = id;
+
+		if (executionResult == 0)
+		{
+			response["success"] = true;
+			int valueCount = lua_gettop(state) - stackBase;
+			if (valueCount < 0)
+			{
+				valueCount = 0;
+			}
+			ConvertLuaValuesToJson(state, stackBase + 1, valueCount, response);
+			if (response.overflowed())
+			{
+				lua_settop(state, stackBase);
+				SendProtocolError(id, "LUA_RESULT_SERIALIZATION_ERROR", "Lua result exceeded the IPC JSON capacity");
+				return;
+			}
+		}
+		else
+		{
+			response["success"] = false;
+			const char* rawError = (lua_gettop(state) > stackBase) ? lua_tostring(state, -1) : NULL;
+			response["error"]["code"] = "LUA_EXECUTION_ERROR";
+			response["error"]["message"] = CleanLuaErrorMessage(rawError);
+		}
+	}
+	catch (...)
+	{
+		lua_settop(state, stackBase);
+		SendProtocolError(id, "LUA_RESULT_SERIALIZATION_ERROR", "Could not serialize the Lua result");
+		return;
+	}
+
+	// Only values added by this execution belong to this response.  This also
+	// removes a Lua error object without disturbing an outer caller's frame.
+	lua_settop(state, stackBase);
+
+	try
+	{
+		std::string serialized;
+		serializeJson(response, serialized);
+		if (response.overflowed() || serialized.empty())
+		{
+			SendProtocolError(id, "LUA_RESULT_SERIALIZATION_ERROR", "Could not serialize the Lua result");
+			return;
+		}
+		SendMessage(serialized);
+	}
+	catch (...)
+	{
+		SendProtocolError(id, "LUA_RESULT_SERIALIZATION_ERROR", "Could not serialize the Lua result");
+	}
+}
+
+void CvConnectionService::SendProtocolError(const std::string& id, const char* code, const std::string& message)
+{
+	DynamicJsonDocument response(16384);
+	response["type"] = "lua_response";
+	response["id"] = id;
+	response["success"] = false;
+	response["error"]["code"] = code != NULL ? code : "IPC_ERROR";
+	response["error"]["message"] = message;
+
+	try
+	{
+		std::string serialized;
+		serializeJson(response, serialized);
+		if (!response.overflowed() && !serialized.empty())
+		{
+			SendMessage(serialized);
+		}
+	}
+	catch (...)
+	{
+		Log("ConnectionService::SendProtocolError - serialization failed");
+	}
 }
 
 DWORD WINAPI CvConnectionService::NamedPipeServerThread(LPVOID lpParam)
