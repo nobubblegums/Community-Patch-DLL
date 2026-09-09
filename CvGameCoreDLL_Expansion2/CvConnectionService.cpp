@@ -333,6 +333,11 @@ void CvConnectionService::ProcessMessages()
 	{
 		return;
 	}
+	if (!m_bInitialized)
+	{
+		LeaveCriticalSection(&m_csProcessing);
+		return;
+	}
 	if (m_bProcessingMessages)
 	{
 		LeaveCriticalSection(&m_csProcessing);
@@ -341,19 +346,22 @@ void CvConnectionService::ProcessMessages()
 	m_bProcessingMessages = true;
 
 	std::deque<std::string> messages;
+	bool incomingLocked = false;
 	try
 	{
 		EnterCriticalSection(&m_csIncoming);
+		incomingLocked = true;
 		messages.swap(m_incomingQueue);
 		LeaveCriticalSection(&m_csIncoming);
+		incomingLocked = false;
 
 		// Snapshot the queue once.  A request arriving while a script is running
 		// waits for the next update rather than extending this pump indefinitely.
 		while (!messages.empty())
 		{
 			std::string message = messages.front();
-			messages.pop_front();
 			RouteMessage(message);
+			messages.pop_front();
 		}
 	}
 	catch (...)
@@ -362,17 +370,28 @@ void CvConnectionService::ProcessMessages()
 		// router implementation unexpectedly throws.
 		try
 		{
-			EnterCriticalSection(&m_csIncoming);
+			if (!incomingLocked)
+			{
+				EnterCriticalSection(&m_csIncoming);
+				incomingLocked = true;
+			}
 			while (!messages.empty())
 			{
 				m_incomingQueue.push_front(messages.back());
 				messages.pop_back();
 			}
-			LeaveCriticalSection(&m_csIncoming);
+			if (incomingLocked)
+			{
+				LeaveCriticalSection(&m_csIncoming);
+				incomingLocked = false;
+			}
 		}
 		catch (...)
 		{
-			LeaveCriticalSection(&m_csIncoming);
+			if (incomingLocked)
+			{
+				LeaveCriticalSection(&m_csIncoming);
+			}
 		}
 		Log("ConnectionService::ProcessMessages - router exception");
 	}
@@ -393,7 +412,7 @@ bool CvConnectionService::RouteMessage(const std::string& message)
 		return true;
 	}
 
-	JsonVariant typeValue = request["type"];
+	JsonVariant typeValue = request["type"].to<JsonVariant>();
 	const char* rawType = typeValue.as<const char*>();
 	if (rawType == NULL)
 	{
@@ -402,8 +421,9 @@ bool CvConnectionService::RouteMessage(const std::string& message)
 	}
 
 	std::string messageType(rawType);
-	JsonVariant idValue = request["id"];
+	JsonVariant idValue = request["id"].to<JsonVariant>();
 	const char* rawId = idValue.as<const char*>();
+	const bool hasId = (rawId != NULL);
 	std::string id = rawId != NULL ? rawId : "";
 	if (id.size() > 1024)
 	{
@@ -412,9 +432,9 @@ bool CvConnectionService::RouteMessage(const std::string& message)
 
 	if (messageType == "lua_execute")
 	{
-		JsonVariant scriptValue = request["script"];
+		JsonVariant scriptValue = request["script"].to<JsonVariant>();
 		const char* rawScript = scriptValue.as<const char*>();
-		if (rawScript == NULL || rawId == NULL)
+		if (rawScript == NULL || !hasId)
 		{
 			SendProtocolError(id, "INVALID_REQUEST", "lua_execute requires string fields 'script' and 'id'");
 			return true;
@@ -738,7 +758,7 @@ namespace
 					{
 						keyText.resize(1024);
 					}
-					JsonVariant child = object[keyText.c_str()];
+					JsonVariant child = object[keyText.c_str()].to<JsonVariant>();
 					ConvertLuaToJsonValue(state, valueIndex, child, NULL, depth + 1);
 					lua_pop(state, 1);
 				}
@@ -814,8 +834,16 @@ void CvConnectionService::HandleLuaExecute(const std::string& script, const std:
 	}
 
 	const int stackBase = lua_gettop(m_pLuaState);
-	const int executionResult = luaL_dostring(m_pLuaState, script.c_str());
-	ProcessLuaResult(m_pLuaState, executionResult, id, stackBase);
+	try
+	{
+		const int executionResult = luaL_dostring(m_pLuaState, script.c_str());
+		ProcessLuaResult(m_pLuaState, executionResult, id, stackBase);
+	}
+	catch (...)
+	{
+		lua_settop(m_pLuaState, stackBase);
+		SendProtocolError(id, "LUA_EXECUTION_ERROR", "Unexpected exception while executing Lua");
+	}
 
 	if (hadGameCoreLock)
 	{
@@ -942,7 +970,14 @@ DWORD WINAPI CvConnectionService::NamedPipeServerThread(LPVOID lpParam)
 				connected = true;
 				break;
 			}
-			if (error != ERROR_PIPE_LISTENING && error != ERROR_NO_DATA)
+			if (error == ERROR_NO_DATA)
+			{
+				// A client that disconnects before ConnectNamedPipe completes
+				// leaves this instance unusable.  Close it and create a fresh
+				// instance so a later bridge connection can be accepted.
+				break;
+			}
+			if (error != ERROR_PIPE_LISTENING)
 			{
 				service->Log("ConnectionService pipe thread - ConnectNamedPipe failed");
 				break;
@@ -975,6 +1010,8 @@ DWORD WINAPI CvConnectionService::NamedPipeServerThread(LPVOID lpParam)
 
 void CvConnectionService::HandleClientConnection(HANDLE hPipe)
 {
+	try
+	{
 	std::string incoming;
 	incoming.reserve(kPipeBufferSize);
 	char readBuffer[kReadBufferSize];
@@ -1003,7 +1040,7 @@ void CvConnectionService::HandleClientConnection(HANDLE hPipe)
 			if (!writeSucceeded)
 			{
 				const DWORD error = GetLastError();
-				if (error == ERROR_NO_DATA || error == ERROR_PIPE_BUSY)
+				if (offset == 0 && (error == ERROR_NO_DATA || error == ERROR_PIPE_BUSY))
 				{
 					outgoing.erase(outgoing.size() - std::strlen(kPipeDelimiter));
 					RequeueOutgoingMessage(outgoing);
@@ -1068,6 +1105,13 @@ void CvConnectionService::HandleClientConnection(HANDLE hPipe)
 			incoming.erase(0, frameStart);
 		}
 	}
+	}
+	catch (...)
+	{
+		// A transport allocation failure must end only this client session.  The
+		// pipe-thread caller owns the handle and will close it before reconnecting.
+		Log("ConnectionService pipe thread - transport exception");
+	}
 }
 
 bool CvConnectionService::WaitForShutdown(DWORD milliseconds) const
@@ -1082,41 +1126,48 @@ bool CvConnectionService::WaitForShutdown(DWORD milliseconds) const
 
 void CvConnectionService::Log(const char* message)
 {
-	if (message == NULL)
+	try
 	{
-		return;
-	}
+		if (message == NULL)
+		{
+			return;
+		}
 
-	const bool pipeThread = (GetCurrentThreadId() == m_dwThreadId && m_dwThreadId != 0);
-	// The pipe thread must not query GC or any other game state.  Main-thread
-	// logging still follows the normal VP logging option.
-	if (!pipeThread && !GC.getLogging())
+		const bool pipeThread = (GetCurrentThreadId() == m_dwThreadId && m_dwThreadId != 0);
+		// The pipe thread must not query GC or any other game state.  Main-thread
+		// logging still follows the normal VP logging option.
+		if (!pipeThread && !GC.getLogging())
+		{
+			return;
+		}
+
+		FILogFile* pLog = pipeThread ? GetPipeLogFile() : GetLogFile();
+		if (pLog == NULL)
+		{
+			return;
+		}
+
+		std::string bounded(message);
+		if (bounded.size() > kMaximumLogMessage)
+		{
+			bounded.resize(kMaximumLogMessage);
+			bounded.append(" [...truncated]");
+		}
+
+		std::stringstream line;
+		SYSTEMTIME time;
+		GetLocalTime(&time);
+		line << "[" << std::setfill('0') << std::setw(2) << time.wHour << ":"
+				 << std::setfill('0') << std::setw(2) << time.wMinute << ":"
+				 << std::setfill('0') << std::setw(2) << time.wSecond << "."
+				 << std::setfill('0') << std::setw(3) << time.wMilliseconds << "] "
+				 << bounded;
+		SafeLogMessage(pLog, line.str().c_str());
+	}
+	catch (...)
 	{
-		return;
+		// Diagnostics must never terminate the game or transport thread.
 	}
-
-	FILogFile* pLog = pipeThread ? GetPipeLogFile() : GetLogFile();
-	if (pLog == NULL)
-	{
-		return;
-	}
-
-	std::string bounded(message);
-	if (bounded.size() > kMaximumLogMessage)
-	{
-		bounded.resize(kMaximumLogMessage);
-		bounded.append(" [...truncated]");
-	}
-
-	std::stringstream line;
-	SYSTEMTIME time;
-	GetLocalTime(&time);
-	line << "[" << std::setfill('0') << std::setw(2) << time.wHour << ":"
-		 << std::setfill('0') << std::setw(2) << time.wMinute << ":"
-		 << std::setfill('0') << std::setw(2) << time.wSecond << "."
-		 << std::setfill('0') << std::setw(3) << time.wMilliseconds << "] "
-		 << bounded;
-	SafeLogMessage(pLog, line.str().c_str());
 }
 
 FILogFile* CvConnectionService::GetLogFile()
