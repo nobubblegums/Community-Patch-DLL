@@ -794,7 +794,7 @@ namespace
 					{
 						keyText.resize(1024);
 					}
-					JsonVariant child = object[keyText.c_str()].to<JsonVariant>();
+					JsonVariant child = object[keyText].to<JsonVariant>();
 					ConvertLuaToJsonValue(state, valueIndex, child, NULL, depth + 1);
 					lua_pop(state, 1);
 				}
