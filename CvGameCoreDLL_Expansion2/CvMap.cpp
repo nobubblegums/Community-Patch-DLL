@@ -554,6 +554,7 @@ CvMap::CvMap()
 	, m_pPlayerCityRadiusCount(NULL)
 	, m_pVisibilityCount(NULL)
 	, m_pVisibilityCountThisTurnMax(NULL)
+	, m_pKnownVisibilityCount(NULL)
 	, m_pRevealedOwner(NULL)
 	, m_pIsImpassable(NULL)
 	, m_pIsStrategic(NULL)
@@ -561,6 +562,7 @@ CvMap::CvMap()
 	, m_pRevealedImprovementType(NULL)
 	, m_pRevealedRouteType(NULL)
 	, m_pResourceForceReveal(NULL)
+	, m_pHumanPlannedRouteState(NULL)
 	, m_areas()
 	, m_landmasses()
 	, m_continents()
@@ -805,6 +807,9 @@ void CvMap::uninit()
 	SAFE_DELETE_ARRAY(m_pYields);
 	SAFE_DELETE_ARRAY(m_pPlayerCityRadiusCount);
 	SAFE_DELETE_ARRAY(m_pVisibilityCount);
+	SAFE_DELETE_ARRAY(m_pVisibilityCountThisTurnMax);
+	SAFE_DELETE_ARRAY(m_pKnownVisibilityCount);
+	SAFE_DELETE_ARRAY(m_pHumanPlannedRouteState);
 	SAFE_DELETE_ARRAY(m_pRevealedOwner);
 	SAFE_DELETE_ARRAY(m_pRevealed);
 	SAFE_DELETE_ARRAY(m_pRevealedImprovementType);
@@ -3202,7 +3207,7 @@ const vector<CvPlot*>& CvMap::GetPlotsAtRangeX(const CvPlot* pPlot, int iRange, 
 			if (m_vPlotsAtRange2[pPlot->GetPlotIndex()].empty())
 			{
 				//not found? update cache
-				for (int i = RING2_PLOTS; i < RING3_PLOTS; i++)
+				for (int i = RING1_PLOTS; i < RING2_PLOTS; i++)
 				{
 					CvPlot* pLoopPlot = iterateRingPlots(pPlot, i);
 					if (pLoopPlot)

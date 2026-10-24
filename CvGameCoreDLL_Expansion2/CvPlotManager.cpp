@@ -65,6 +65,7 @@ CvSparseIDInfoGrid& CvSparseIDInfoGrid::operator=(const CvSparseIDInfoGrid& othe
 			{
 				if (m_paEntries[i])
 				{
+					m_paEntries[i]->clear();
 					m_pkAllocator->Release(m_paEntries[i]);
 				}
 			}
@@ -101,10 +102,13 @@ CvSparseIDInfoGrid::~CvSparseIDInfoGrid()
 	if (m_paEntries)
 	{
 		CvIDInfoFixedVector** pkEntry = m_paEntries;
-		for (uint uiIndex = m_uiMaxIndex; --uiIndex;)
+		for (uint i = 0; i < m_uiMaxIndex; ++i)
 		{
 			if (*pkEntry)
+			{
+				(*pkEntry)->clear();
 				m_pkAllocator->Release(*pkEntry);
+			}
 
 			pkEntry++;
 		}
@@ -190,7 +194,7 @@ CvPlotManager::CvPlotManager()
 //	---------------------------------------------------------------------------
 CvPlotManager::~CvPlotManager()
 {
-	
+	Uninit();
 }
 
 //	---------------------------------------------------------------------------
@@ -203,6 +207,10 @@ void CvPlotManager::Init(uint uiWidth, uint uiHeight)
 //	---------------------------------------------------------------------------
 void CvPlotManager::Uninit()
 {
+	for (CvSparseIDInfoGridVector::iterator itr = m_aLayers.begin(); itr != m_aLayers.end(); ++itr)
+	{
+		delete (*itr).m_pkGrid;
+	}
 	m_aLayers.clear();
 }
 
