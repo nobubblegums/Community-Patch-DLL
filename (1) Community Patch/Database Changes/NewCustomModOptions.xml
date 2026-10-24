@@ -1210,6 +1210,9 @@
 
 		<!-- Enables support for JFD's Mods -->
 		<Row Class="6" Name="BALANCE_CORE_JFD" Value="0"/>
+
+		<!-- Enables the optional Vox Deorum raw Lua IPC channel -->
+		<Row Class="3" Name="IPC_CHANNEL" Value="0"/>
 		<!-- Events for JFD Piety -->
 		<!--   GameEvents.PietyChange.Add(function(iPlayer, iCurrentPiety, iPietyChange) end) -->
 		<!--   GameEvents.PietyRateChange.Add(function(iPlayer, iCurrentPietyRate, iPietyRateChange) end) -->
