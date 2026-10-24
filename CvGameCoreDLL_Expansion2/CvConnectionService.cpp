@@ -402,6 +402,39 @@ void CvConnectionService::ProcessMessages()
 
 bool CvConnectionService::RouteMessage(const std::string& message)
 {
+	// The Vox Deorum bridge wraps every outbound request batch in a JSON array,
+	// including batches containing only one request. Keep the object path direct
+	// and route each array member through the same single-request handler.
+	const std::string::size_type firstCharacter = message.find_first_not_of(" \t\r\n");
+	if (firstCharacter == std::string::npos || message[firstCharacter] != '[')
+	{
+		return RouteSingleMessage(message);
+	}
+
+	DynamicJsonDocument batch(kJsonDocumentCapacity);
+	DeserializationError parseError = deserializeJson(batch, message);
+	if (parseError)
+	{
+		std::string details("Invalid JSON request: ");
+		details.append(parseError.c_str());
+		SendProtocolError("", "INVALID_JSON", details);
+		return true;
+	}
+
+	JsonArray requests = batch.as<JsonArray>();
+	JsonArray::iterator request = requests.begin();
+	while (request != requests.end())
+	{
+		std::string requestJson;
+		serializeJson(*request, requestJson);
+		RouteSingleMessage(requestJson);
+		++request;
+	}
+	return true;
+}
+
+bool CvConnectionService::RouteSingleMessage(const std::string& message)
+{
 	DynamicJsonDocument request(kJsonDocumentCapacity);
 	DeserializationError parseError = deserializeJson(request, message);
 	if (parseError)
@@ -412,17 +445,13 @@ bool CvConnectionService::RouteMessage(const std::string& message)
 		return true;
 	}
 
-	JsonVariant typeValue = request["type"].to<JsonVariant>();
-	const char* rawType = typeValue.as<const char*>();
-	if (rawType == NULL)
+	if (!request.is<JsonObject>())
 	{
-		SendProtocolError("", "INVALID_REQUEST", "Request is missing a string 'type' field");
+		SendProtocolError("", "INVALID_REQUEST", "Each request must be a JSON object");
 		return true;
 	}
 
-	std::string messageType(rawType);
-	JsonVariant idValue = request["id"].to<JsonVariant>();
-	const char* rawId = idValue.as<const char*>();
+	const char* rawId = request["id"].as<const char*>();
 	const bool hasId = (rawId != NULL);
 	std::string id = rawId != NULL ? rawId : "";
 	if (id.size() > 1024)
@@ -430,10 +459,17 @@ bool CvConnectionService::RouteMessage(const std::string& message)
 		id.resize(1024);
 	}
 
+	const char* rawType = request["type"].as<const char*>();
+	if (rawType == NULL)
+	{
+		SendProtocolError(id, "INVALID_REQUEST", "Request is missing a string 'type' field");
+		return true;
+	}
+	std::string messageType(rawType);
+
 	if (messageType == "lua_execute")
 	{
-		JsonVariant scriptValue = request["script"].to<JsonVariant>();
-		const char* rawScript = scriptValue.as<const char*>();
+		const char* rawScript = request["script"].as<const char*>();
 		if (rawScript == NULL || !hasId)
 		{
 			SendProtocolError(id, "INVALID_REQUEST", "lua_execute requires string fields 'script' and 'id'");

@@ -47,6 +47,7 @@ private:
 	// behind this game-thread boundary makes the transport commit independently
 	// buildable and keeps the pipe thread free of game work.
 	bool RouteMessage(const std::string& message);
+	bool RouteSingleMessage(const std::string& message);
 	void HandleLuaExecute(const std::string& script, const std::string& id);
 	void ProcessLuaResult(lua_State* state, int executionResult, const std::string& id, int stackBase);
 	void SendProtocolError(const std::string& id, const char* code, const std::string& message);
