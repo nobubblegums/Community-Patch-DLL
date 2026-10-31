@@ -979,9 +979,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 					{
 						//hack, bump up the weight for our very first escort!
 						if (GET_PLAYER(m_pCity->getOwner()).IsEarlyExpansionPhase())
-							{
 							iNewWeight *= 3;
-						}
 
 						selection.m_iValue = iNewWeight;
 						m_Buildables.push_back(selection, iNewWeight);
@@ -1325,10 +1323,10 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 		{
 			if (pUnitEntry)
 			{
-				if ((pUnitEntry->IsSpreadReligion() || pUnitEntry->IsRemoveHeresy()))
+				if (pUnitEntry->IsSpreadReligion() || pUnitEntry->IsRemoveHeresy())
 					continue;
 
-				if ((pUnitEntry->GetFaithCost() <= 0 || pUnitEntry->GetSpecialUnitType() != NO_SPECIALUNIT))
+				if (pUnitEntry->GetFaithCost() <= 0 || pUnitEntry->GetSpecialUnitType() != NO_SPECIALUNIT)
 					continue;
 			}
 		}
@@ -1960,7 +1958,6 @@ void CvCityStrategyAI::LogPossibleHurries(const CvWeightedVector<CvCityBuildable
 			CvCityBuildable buildable = builds.GetElement(iI);
 			int iWeight = builds.GetWeight(iI);
 
-
 			switch(buildable.m_eBuildableType)
 			{
 			case NOT_A_CITY_BUILDABLE:
@@ -2089,7 +2086,6 @@ void CvCityStrategyAI::LogPossibleBuilds(const CvWeightedVector<CvCityBuildable>
 		{
 			CvCityBuildable buildable = builds.GetElement(iI);
 			int iWeight = builds.GetWeight(iI);
-
 
 			switch(buildable.m_eBuildableType)
 			{
@@ -2388,6 +2384,7 @@ int CityStrategyAIHelpers::ReweightByTurnsLeft(int iOriginalWeight, int iTurnsLe
 {
 	double fTotalCostFactor = /*0.15f*/ GD_FLOAT_GET(AI_PRODUCTION_WEIGHT_BASE_MOD) + (iTurnsLeft * /*0.015f*/ GD_FLOAT_GET(AI_PRODUCTION_WEIGHT_MOD_PER_TURN_LEFT));
 	double fWeightDivisor = pow((double) iTurnsLeft, fTotalCostFactor);
+
 	return int(double(iOriginalWeight) / fWeightDivisor);
 }
 
