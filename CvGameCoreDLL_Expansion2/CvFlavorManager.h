@@ -39,6 +39,8 @@ public:
 protected:
 
 	virtual void FlavorUpdate() = 0;
+	virtual void TraceFlavorSet(FlavorTypes, int) {}
+	virtual void TraceFlavorDelta(FlavorTypes, int, const char*) {}
 	virtual void LogFlavorChange(FlavorTypes eFlavor, int change, const char* reason, bool start) = 0;
 
 	bool m_bIsCity;

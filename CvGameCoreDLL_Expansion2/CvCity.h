@@ -1580,7 +1580,7 @@ public:
 	int getThreatValue() const;
 
 	void clearOrderQueue();
-	void pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bool bPop, bool bAppend, bool bRush = false);
+	void pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bool bPop, bool bAppend, bool bRush = false, int traceDecisionID = 0);
 	void popOrder(int iNum, bool bFinish = false, bool bChoose = false);
 	void swapOrder(int iNum);
 	bool hasOrder(OrderTypes eOrder, int iData1, int iData2) const;
@@ -1612,7 +1612,7 @@ public:
 	bool CanPlaceUnitHere(UnitTypes eUnitType) const;
 	bool IsCanPurchase(bool bTestPurchaseCost, bool bTestTrainable, UnitTypes eUnitType, BuildingTypes eBuildingType, ProjectTypes eProjectType, YieldTypes ePurchaseYield); //slow version
 	bool IsCanPurchase(const std::vector<int>& vPreExistingBuildings, bool bTestPurchaseCost, bool bTestTrainable, UnitTypes eUnitType, BuildingTypes eBuildingType, ProjectTypes eProjectType, YieldTypes ePurchaseYield); //fast version
-	CvUnit* PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield);
+	CvUnit* PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int traceDecisionID = 0);
 	bool PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseYield);
 	bool PurchaseProject(ProjectTypes eProjectType, YieldTypes ePurchaseYield);
 
@@ -1631,7 +1631,7 @@ public:
 	virtual void AI_init() = 0;
 	virtual void AI_reset() = 0;
 	virtual void AI_doTurn() = 0;
-	virtual void AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings) = 0;
+	virtual void AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings, const char* traceTrigger = "UNKNOWN") = 0;
 	virtual bool AI_isChooseProductionDirty() = 0;
 	virtual void AI_setChooseProductionDirty(bool bNewValue) = 0;
 

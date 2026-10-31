@@ -159,9 +159,10 @@ public:
 	}
 
 	/// Return a random entry by weight, but avoid unlikely candidates (by only looking at candidates with a certain percentage of the top score)
-	T ChooseAbovePercentThreshold(int iPercent, CvSeeder seed)
+	T ChooseAbovePercentThreshold(int iPercent, CvSeeder seed, void (*trace)(const char*, int, int, int) = NULL)
 	{
 		iPercent = range(iPercent, 0, 100);
+		if (trace) trace("THRESHOLD_PERCENT", iPercent, (int)m_items.size(), 0);
 
 		// First, calculate the highest weight
 		int iHighestWeight = 0;
@@ -177,22 +178,26 @@ public:
 		// If nothing has any weight, choose at random
 		if (iHighestWeight == 0)
 		{
-			return ChooseAtRandom(seed);
+			if (trace) trace("MODE_UNIFORM", (int)m_items.size(), 0, 0);
+			return ChooseAtRandom(seed, trace);
 		}
 		// 0% = consider all choices, with no cutoff.
 		else if (iPercent == 0)
 		{
-			return ChooseByWeight(seed);
+			if (trace) trace("MODE_NO_CUTOFF", (int)m_items.size(), 0, 0);
+			return ChooseByWeight(seed, trace);
 		}
 
 		// Compute cutoff for the requested percentage
 		int iCutoff = iHighestWeight * iPercent / 100;
+		if (trace) trace("CUTOFF", iPercent, iHighestWeight, iCutoff);
 
 		// Create a temporary vector with only the items that meet the cutoff
 		CvWeightedVector<T> tempVector;
 		for (unsigned int i = 0; i < m_items.size(); i++)
 		{
 			WeightedElement elem = m_items[i];
+			if (trace) trace("POOL", (int)i, elem.m_iWeight, iCutoff);
 			if (elem.m_iWeight >= iCutoff)
 			{
 				tempVector.push_back(elem.m_Element, elem.m_iWeight);
@@ -200,35 +205,47 @@ public:
 		}
 
 		// Make the choice!
-		return tempVector.ChooseByWeight(seed);
+		return tempVector.ChooseByWeight(seed, trace);
 	};
 
 	/// Return a random entry (ignoring weight)
-	T ChooseAtRandom(CvSeeder seed)
+	T ChooseAtRandom(CvSeeder seed, void (*trace)(const char*, int, int, int) = NULL)
 	{
 		// Based on the number of elements we have, pick one at random
 		uint uChoice = GC.getGame().urandLimitExclusive(m_items.size(), seed);
+		if (trace) {
+			for (unsigned int i=0; i<m_items.size(); ++i) trace("ELIGIBLE", (int)i, m_items[i].m_iWeight, (int)m_items.size());
+			trace("SELECTED_INDEX", (int)uChoice, (int)m_items.size(), 0);
+		}
+		if (trace) trace("UNIFORM_DRAW", (int)uChoice, (int)m_items.size(), 0);
 		return m_items[uChoice].m_Element;
 	};
 
 	/// Choose by weight (even considering unlikely candidates, but not those with zero weight)
-	T ChooseByWeight(CvSeeder seed)
+	T ChooseByWeight(CvSeeder seed, void (*trace)(const char*, int, int, int) = NULL)
 	{
 		// If nothing has any weight, choose at random
 		int iTotalWeight = GetTotalWeight();
 		if (iTotalWeight == 0)
-			return ChooseAtRandom(seed);
+			return ChooseAtRandom(seed, trace);
 
 		// Random roll up to total weight
+		if (trace) {
+			for (unsigned int i=0; i<m_items.size(); ++i) trace("ELIGIBLE", (int)i, m_items[i].m_iWeight, iTotalWeight);
+		}
 		int iChoice = GC.getGame().randRangeExclusive(0, iTotalWeight, seed);
+		if (trace) trace("WEIGHTED_DRAW", iChoice, iTotalWeight, 0);
 
 		// Loop through until we find the item that is in the range for this roll
 		for (unsigned int i = 0; i < m_items.size(); i++)
 		{
 			WeightedElement elem = m_items[i];
 			iChoice -= elem.m_iWeight;
-			if (iChoice < 0)
+			if (trace) trace("BOUNDARY", (int)i, elem.m_iWeight, iChoice);
+			if (iChoice < 0) {
+				if (trace) trace("SELECTED_INDEX", (int)i, elem.m_iWeight, iChoice);
 				return elem.m_Element;
+			}
 		}
 
 		// We should have found something, so reaching here is an error

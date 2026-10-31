@@ -2986,6 +2986,19 @@ void CvMilitaryAI::LogStrategy(MilitaryAIStrategyTypes eStrategy, bool bValue)
 }
 
 /// Log some military status info each turn
+static CvString MilitarySummaryCsvField(const CvString& value)
+{
+ CvString result = "\"";
+ for (const char* p = value.c_str(); *p; ++p)
+ {
+  if (*p == '"') result += "\"\"";
+  else if (*p == '\r' || *p == '\n') result += " ";
+  else result += *p;
+ }
+ result += "\"";
+ return result;
+}
+
 void CvMilitaryAI::LogMilitaryStatus()
 {
 	if(GC.getLogging() && GC.getAILogging())
@@ -3001,16 +3014,18 @@ void CvMilitaryAI::LogMilitaryStatus()
 		playerName = GetPlayer()->getCivilizationShortDescription();
 		pLog = LOGFILEMGR.GetLog(GetLogFileName(playerName,true), FILogFile::kDontTimeStamp);
 
-		// Very first update (to write header row?)
-		if(GC.getGame().getElapsedGameTurns() == 0 && m_pPlayer->GetID() == 0)
+		// GetFileName identifies the physical file even when the log manager changes paths.
+		// Msg flushes by default (kDontFlushOnWrite is not set here).
+		WIN32_FILE_ATTRIBUTE_DATA attributes;
+		if (GetFileAttributesExW(pLog->GetFileName(), GetFileExInfoStandard, &attributes) &&
+			attributes.nFileSizeHigh == 0 && attributes.nFileSizeLow == 0)
 		{
-			strTemp.Format("Turn, Player, Era, Cities, Settlers, LandUnits, LandArmySize, RecLandOffensive, RecLandDefensive, NavalUnits, NavalArmySize, RecNavyOffensive, MeleeUnits, MobileUnits, ReconUnits, ArcherUnits, SiegeUnits, SkirmisherUnits, AllLandRanged, AntiAirUnits, MeleeNavalUnits, RangedNavalUnits, Submarines, Carriers, TotalAirUnits, BomberUnits, FighterUnits, Nukes, Missiles, RecTotal, TotalMilitaryUnits, SupplyLimit, OutOfSupply, WarWearinessSupplyReduction, NoSupplyUnits, WarCount, MostEndangeredCity, Danger");
-			pLog->Msg(strTemp);
+			pLog->Msg("Turn, Player, Era, Cities, Settlers, LandUnits, LandArmySize, RecommendedLandUnits, NavalUnits, NavalArmySize, RecommendedNavalUnits, MeleeUnits, MobileUnits, ReconUnits, ArcherUnits, SiegeUnits, SkirmisherUnits, AllLandRanged, AntiAirUnits, MeleeNavalUnits, RangedNavalUnits, Submarines, Carriers, TotalAirUnits, BomberUnits, FighterUnits, Nukes, Missiles, RecTotal, TotalMilitaryUnits, SupplyLimit, OutOfSupply, WarWearinessSupplyReduction, NoSupplyUnits, WarCount, MostEndangeredCity, Danger, RecommendedExplorers, PlayerID, WarType");
 		}
 
 		// Get the leading info for this line
 		strBaseString.Format("%03d, ", GC.getGame().getElapsedGameTurns());
-		strBaseString += playerName + ", ";
+		strBaseString += MilitarySummaryCsvField(playerName) + ", ";
 
 		// City info
 		strTemp.Format("%d, %d, %d, ", m_pPlayer->GetCurrentEra(), m_pPlayer->getNumCities(), m_pPlayer->GetNumUnitsWithUnitAI(UNITAI_SETTLE, true));
@@ -3031,12 +3046,18 @@ void CvMilitaryAI::LogMilitaryStatus()
 		pCity = threatCities.empty() ? NULL : threatCities.front();
 		if(pCity != NULL)
 		{
-			strOutBuf += pCity->getNameNoSpace();
+			strOutBuf += MilitarySummaryCsvField(pCity->getNameNoSpace());
 			strTemp.Format(", %d", pCity->getThreatValue());
 			strOutBuf += strTemp;
 		}
 
-		pLog->Msg(strOutBuf);
+		else
+		{
+			strOutBuf += "\"\", 0";
+		}
+		strTemp.Format(", %d, %d, %d", GetRecommendedExplorers(), (int)m_pPlayer->GetID(), (int)GetWarType());
+		strOutBuf += strTemp;
+		pLog->Msg("%s", strOutBuf.c_str());
 	}
 
 	// Mirror MilitarySummary into the SQLite stats database
@@ -3097,6 +3118,9 @@ void CvMilitaryAI::LogMilitaryStatus()
 			.bind(GetNumberCivsAtWarWith(false))
 			.bind(strEndangeredCity.c_str())
 			.bind(iDanger)
+			.bind(GetRecommendedExplorers())
+			.bind((int)m_pPlayer->GetID())
+			.bind((int)GetWarType())
 			.execute();
 	}
 }

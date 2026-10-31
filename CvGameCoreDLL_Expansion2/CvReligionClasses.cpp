@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvGameCoreDLLUtil.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
@@ -6979,7 +6980,7 @@ bool CvReligionAI::DoFaithPurchasesInCities(CvCity* pCity)
 						{
 							if (eUnit == pCity->GetUnitForOperation() || eUnit == m_pPlayer->GetMilitaryAI()->GetUnitTypeForArmy(pCity))
 							{
-								pCity->PurchaseUnit(eUnit, YIELD_FAITH);
+								pCity->PurchaseUnit(eUnit, YIELD_FAITH, selection.m_iDiagnosticDecisionID);
 								if (GC.getLogging())
 								{
 									CvString strFaith;
@@ -6991,7 +6992,7 @@ bool CvReligionAI::DoFaithPurchasesInCities(CvCity* pCity)
 							}
 							else if (m_pPlayer->GetNumUnitsWithUnitAI(pUnitEntry->GetDefaultUnitAIType(), false) <= iPurchaseAmount)
 							{
-								pCity->PurchaseUnit(eUnit, YIELD_FAITH);
+								pCity->PurchaseUnit(eUnit, YIELD_FAITH, selection.m_iDiagnosticDecisionID);
 								if (GC.getLogging())
 								{
 									CvString strFaith;

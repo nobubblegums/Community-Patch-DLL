@@ -110,6 +110,9 @@ inline void RegisterMilitarySummaryTable()
 		kColumns.push_back(ColumnDef("WarCount", Database::COLTYPE_INT));
 		kColumns.push_back(ColumnDef("MostEndangeredCity", Database::COLTYPE_TEXT));
 		kColumns.push_back(ColumnDef("Danger", Database::COLTYPE_INT));
+		kColumns.push_back(ColumnDef("RecommendedExplorers", Database::COLTYPE_INT));
+		kColumns.push_back(ColumnDef("PlayerID", Database::COLTYPE_INT));
+		kColumns.push_back(ColumnDef("WarType", Database::COLTYPE_INT));
 		GET_SQLITE_LOGGER().RegisterTable("MilitarySummary", kColumns);
 	}
 }

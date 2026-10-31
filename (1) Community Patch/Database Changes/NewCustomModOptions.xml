@@ -1160,6 +1160,9 @@
 		<!-- 				SLATED FOR DELETION							-->
 		<!-- ********************************************************** -->
 
+		<!-- Optional diagnostics; does not enable experimental Unit Production AI tweaks. -->
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING" Value="0"/>
+
 		<!-- Enables experimental Unit Production AI tweaks -->
 		<Row Class="6" Name="AI_UNIT_PRODUCTION" Value="0"/>
 

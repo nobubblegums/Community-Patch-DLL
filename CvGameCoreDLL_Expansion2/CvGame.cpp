@@ -5500,7 +5500,7 @@ void CvGame::setAIAutoPlay(int iNewValue, PlayerTypes eReturnAsPlayer)
 			{
 				if (!pLoopCity->isProduction() || pLoopCity->isProductionProcess())
 				{
-					pLoopCity->AI_chooseProduction(false /*bInterruptWonders*/, false);
+					pLoopCity->AI_chooseProduction(false /*bInterruptWonders*/, false, "AI_CONTROL_ENABLED");
 				}
 			}
 			GET_PLAYER(eNewAIPlayer).AI_chooseResearch();

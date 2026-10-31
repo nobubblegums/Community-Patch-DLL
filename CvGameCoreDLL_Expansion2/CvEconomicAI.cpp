@@ -1,4 +1,4 @@
-﻿/*	-------------------------------------------------------------------------------------------------------
+/*	-------------------------------------------------------------------------------------------------------
 	© 1991-2012 Take-Two Interactive Software and its subsidiaries.  Developed by Firaxis Games.  
 	Sid Meier's Civilization V, Civ, Civilization, 2K Games, Firaxis Games, Take-Two Interactive Software 
 	and their respective logos are all trademarks of Take-Two interactive Software, Inc.  
@@ -7,6 +7,7 @@
 	------------------------------------------------------------------------------------------------------- */
 
 #include "CvGameCoreDLLPCH.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvEconomicAI.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
@@ -3204,6 +3205,7 @@ void CvEconomicAI::DoHurry()
 		CvCity* pSelectedCity = m_pPlayer->getCity(selection.m_iCityID);
 		if (pSelectedCity == NULL)
 			continue;
+		if (AIUnitDecisionTrace::Configured()) AIUnitDecisionTrace::ProductionEvent(pSelectedCity, "HURRY_PLAYER_CANDIDATE_CONSIDERED", selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? ORDER_CONSTRUCT : ORDER_TRAIN, selection.m_iIndex, selection.m_iDiagnosticDecisionID, "GOLD", "EVALUATED");
 
 		//Units
 		switch (selection.m_eBuildableType)
@@ -3230,8 +3232,10 @@ void CvEconomicAI::DoHurry()
 					if (MOD_BALANCE_UNIT_INVESTMENTS || pkUnitInfo->GetSpaceshipProject() != NO_PROJECT)
 					{
 						const UnitClassTypes eUnitClass = (UnitClassTypes)(pkUnitInfo->GetUnitClassType());
+						AIUnitDecisionTrace::Action traceAction(pSelectedCity, selection.m_iDiagnosticDecisionID, ORDER_TRAIN, eUnitType, "UNIT_INVESTMENT", "GOLD");
 						pSelectedCity->SetUnitInvestment(eUnitClass, true);
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
+						if (AIUnitDecisionTrace::Configured() && pSelectedCity->IsUnitInvestment(eUnitClass)) traceAction.Success();
 						if (GC.getLogging() && GC.getAILogging())
 						{
 							CvString strLogString;
@@ -3246,7 +3250,7 @@ void CvEconomicAI::DoHurry()
 						iTempWeight = pSelectedCity->GetCityStrategyAI()->GetUnitProductionAI()->CheckUnitBuildSanity(eUnitType, true, iTempWeight, true);
 						if (iTempWeight > 0)
 						{
-							CvUnit* pUnit = pSelectedCity->PurchaseUnit(eUnitType, YIELD_GOLD);
+							CvUnit* pUnit = pSelectedCity->PurchaseUnit(eUnitType, YIELD_GOLD, selection.m_iDiagnosticDecisionID);
 							if (pUnit)
 							{
 								if (GC.getLogging() && GC.getAILogging())
@@ -3332,6 +3336,7 @@ void CvEconomicAI::DoHurry()
 							m_pPlayer->GetHomelandAI()->LogHomelandMessage(strLogString);
 						}
 
+						AIUnitDecisionTrace::Action traceAction(pSelectedCity, selection.m_iDiagnosticDecisionID, ORDER_CONSTRUCT, eBuildingType, MOD_BALANCE_BUILDING_INVESTMENTS ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE", "GOLD");
 						//take the money...
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -3340,10 +3345,12 @@ void CvEconomicAI::DoHurry()
 						{
 							const BuildingClassTypes eBuildingClass = pkBuildingInfo->GetBuildingClassType();
 							pSelectedCity->SetBuildingInvestment(eBuildingClass, true);
+							if (AIUnitDecisionTrace::Configured() && pSelectedCity->IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 						}
 						else
 						{
-							pSelectedCity->CreateBuilding(eBuildingType);
+							const bool traceCreated = pSelectedCity->CreateBuilding(eBuildingType);
+							if (AIUnitDecisionTrace::Configured() && traceCreated) traceAction.Success();
 							pSelectedCity->SetBuildingPurchaseCooldown(pkBuildingInfo->GetCooldown());
 							if (MOD_EVENTS_CITY)
 							{

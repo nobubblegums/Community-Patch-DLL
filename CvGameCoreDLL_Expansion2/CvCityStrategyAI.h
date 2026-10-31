@@ -132,6 +132,7 @@ struct CvCityBuildable
 		, m_iTurnsToConstruct(0)
 		, m_iValue(0)
 		, m_iCityID(-1)
+		, m_iDiagnosticDecisionID(0)
 	{
 	}
 
@@ -140,6 +141,7 @@ struct CvCityBuildable
 	int m_iTurnsToConstruct;
 	int m_iValue;
 	int m_iCityID;
+	int m_iDiagnosticDecisionID; // Diagnostic return-side correlation only; never serialized or scored.
 };
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -152,6 +154,7 @@ struct CvCityBuildable
 //!    specialize, switch production, etc.
 //!  - Oversees both the city governor AI and the AI managing what the city is building
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#include "AIUnitDecisionTrace.h"
 class CvCityStrategyAI: public CvFlavorRecipient
 {
 public:
@@ -204,7 +207,7 @@ public:
 	void PrecalcYieldStats();
 
 	// City AI methods
-	void ChooseProduction(BuildingTypes eIgnoreBldg = NO_BUILDING, UnitTypes eIgnoreUnit = NO_UNIT, bool bInterruptBuildings = false, bool bInterruptWonders = false);
+	void ChooseProduction(BuildingTypes eIgnoreBldg = NO_BUILDING, UnitTypes eIgnoreUnit = NO_UNIT, bool bInterruptBuildings = false, bool bInterruptWonders = false, const char* traceTrigger = "UNKNOWN");
 	CvCityBuildable ChooseHurry(bool bUnitOnly = false, bool bFaithPurchase = false);
 	void LogHurryMessage(CvString& strMsg);
 	void DoTurn();
@@ -217,6 +220,13 @@ public:
 private:
 
 	void ReweightByDuration(CvWeightedVector<CvCityBuildable>& options);
+
+	// Current logging-only flavor components; never serialized.
+	void TraceFlavorSet(FlavorTypes eFlavor, int value);
+	void TraceFlavorDelta(FlavorTypes eFlavor, int value, const char* source);
+	void TraceCityFlavorDelta(FlavorTypes eFlavor, int value, const char* source);
+	std::vector<AIUnitDecisionTrace::Components> m_traceFlavorComponents;
+	std::vector<bool> m_traceFlavorAvailable;
 
 	// Logging functions
 	void LogFlavorChange(FlavorTypes eFlavor, int change, const char* reason, bool start);

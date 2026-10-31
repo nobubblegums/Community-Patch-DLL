@@ -58,6 +58,7 @@ void CvFlavorRecipient::SetFlavors(const CvEnumMap<FlavorTypes, int>& piUpdatedF
 	{
 		LogFlavorChange((FlavorTypes)iI, piUpdatedFlavorValues[iI]-m_piLatestFlavorValues[iI], reason, true);
 		m_piLatestFlavorValues[iI] = piUpdatedFlavorValues[iI];
+		TraceFlavorSet((FlavorTypes)iI, piUpdatedFlavorValues[iI]);
 	}
 
 	FlavorUpdate();
@@ -79,6 +80,7 @@ void CvFlavorRecipient::ChangeFlavors(const CvEnumMap<FlavorTypes, int>& piDelta
 			LogFlavorChange((FlavorTypes)iI, piDeltaFlavorValues[iI], reason, effectstart);
 			//don't enforce a certain range here, this will permanently skew the flavor if a temporary effect is cancelled!
 			m_piLatestFlavorValues[iI] += piDeltaFlavorValues[iI];
+			TraceFlavorDelta((FlavorTypes)iI, piDeltaFlavorValues[iI], reason);
 		}
 	}
 

@@ -1,4 +1,4 @@
-﻿/*	-------------------------------------------------------------------------------------------------------
+/*	-------------------------------------------------------------------------------------------------------
 	© 1991-2012 Take-Two Interactive Software and its subsidiaries.  Developed by Firaxis Games.
 	Sid Meier's Civilization V, Civ, Civilization, 2K Games, Firaxis Games, Take-Two Interactive Software
 	and their respective logos are all trademarks of Take-Two interactive Software, Inc.
@@ -45,6 +45,7 @@
 
 #include "CvDllNetMessageExt.h"
 // include after all other headers
+#include "AIUnitDecisionTrace.h"
 #include "LintFree.h"
 
 OBJECT_VALIDATE_DEFINITION(CvCity)
@@ -1118,7 +1119,7 @@ void CvCity::init(int iID, PlayerTypes eOwner, int iX, int iY, bool bBumpUnits, 
 	}
 	if (!kOwner.isHuman(ISHUMAN_AI_CITY_PRODUCTION))
 	{
-		AI_chooseProduction(false, false);
+		AI_chooseProduction(false, false, "CITY_INITIALIZED");
 	}
 }
 
@@ -15658,6 +15659,7 @@ void CvCity::CheckForOperationUnits()
 						bool bInvest = MOD_BALANCE_UNIT_INVESTMENTS || (MOD_BALANCE_VP && pkUnitEntry->GetSpaceshipProject() != NO_PROJECT);
 						if (bInvest)
 						{
+							AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_TRAIN, eBestUnit, "UNIT_INVESTMENT", "GOLD");
 							//take the money...
 							kPlayer.GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -15665,6 +15667,7 @@ void CvCity::CheckForOperationUnits()
 							if (eUnitClass != NO_UNITCLASS)
 							{
 								SetUnitInvestment(eUnitClass, true);
+								if (AIUnitDecisionTrace::Configured() && IsUnitInvestment(eUnitClass)) traceAction.Success();
 								if (CityStrategyAIHelpers::IsTestCityStrategy_IsPuppetAndAnnexable(this))
 								{
 									if (getProductionProcess() != NO_PROCESS)
@@ -15808,6 +15811,7 @@ void CvCity::CheckForOperationUnits()
 					bool bInvest = MOD_BALANCE_UNIT_INVESTMENTS || (MOD_BALANCE_VP && pkUnitEntry->GetSpaceshipProject() != NO_PROJECT);
 					if (bInvest)
 					{
+						AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_TRAIN, eBestUnit, "UNIT_INVESTMENT", "GOLD");
 						//take the money...
 						kPlayer.GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -15815,6 +15819,7 @@ void CvCity::CheckForOperationUnits()
 						if (eUnitClass != NO_UNITCLASS)
 						{
 							SetUnitInvestment(eUnitClass, true);
+							if (AIUnitDecisionTrace::Configured() && IsUnitInvestment(eUnitClass)) traceAction.Success();
 							if (CityStrategyAIHelpers::IsTestCityStrategy_IsPuppetAndAnnexable(this))
 							{
 								if (getProductionProcess() != NO_PROCESS)
@@ -19596,7 +19601,9 @@ void CvCity::DoAnnex(bool bRaze)
 				const BuildingClassTypes eBuildingClass = pkBuildingInfo->GetBuildingClassType();
 				if (eBuildingClass != NO_BUILDINGCLASS)
 				{
+					AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_CONSTRUCT, eBuilding, "BUILDING_INVESTMENT", "NONE");
 					SetBuildingInvestment(eBuildingClass, true);
+					if (AIUnitDecisionTrace::Configured() && IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 				}
 			}
 		}
@@ -22075,7 +22082,7 @@ void CvCity::setProductionAutomated(bool bNewValue, bool bClear)
 		}
 		if (!isProduction())
 		{
-			AI_chooseProduction(false /*bInterruptWonders*/, false);
+			AI_chooseProduction(false /*bInterruptWonders*/, false, "AUTOMATION_ENABLED");
 		}
 	}
 }
@@ -29314,11 +29321,16 @@ void CvCity::clearOrderQueue()
 
 
 //	--------------------------------------------------------------------------------
-void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bool bPop, bool bAppend, bool bRush)
+void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bool bPop, bool bAppend, bool bRush, int traceDecisionID)
 {
 	VALIDATE_OBJECT();
 	OrderData order;
 	bool bValid = false;
+	int tracePreviousOrder = -1, tracePreviousObject = -1;
+	if (AIUnitDecisionTrace::Configured() && traceDecisionID) {
+		const OrderData* traceHead = headOrderQueueNode();
+		if (traceHead) { tracePreviousOrder = traceHead->eOrderType; tracePreviousObject = traceHead->iData1; }
+	}
 
 	if (bPop)
 	{
@@ -29382,6 +29394,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	if (!bValid)
 	{
+		if (AIUnitDecisionTrace::Configured() && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_ORDER_REJECTED", eOrder, iData1, traceDecisionID, "NONE", "REJECTED");
 		return;
 	}
 
@@ -29414,6 +29427,8 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 		m_orderQueue.insertAtBeginning(&order);
 	}
 
+
+
 	if (!bAppend || (getOrderQueueLength() == 1))
 	{
 		startHeadOrder();
@@ -29442,6 +29457,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	CvInterfacePtr<ICvCity1> pCity = GC.WrapCityPointer(this);
 	DLLUI->SetSpecificCityInfoDirty(pCity.get(), CITY_UPDATE_TYPE_PRODUCTION);
+	if (AIUnitDecisionTrace::Configured() && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, tracePreviousOrder<0 ? "PRODUCTION_ORDER_STARTED" : tracePreviousOrder==eOrder && tracePreviousObject==iData1 ? "PRODUCTION_ORDER_RESELECTED" : "PRODUCTION_ORDER_REPLACED", eOrder, iData1, traceDecisionID);
 }
 
 
@@ -29604,7 +29620,7 @@ void CvCity::popOrder(int iNum, bool bFinish, bool bChoose)
 		{
 			if (!isHuman(ISHUMAN_AI_CITY_PRODUCTION) || isProductionAutomated())
 			{
-				AI_chooseProduction(false /*bInterruptWonders*/, false);
+				AI_chooseProduction(false /*bInterruptWonders*/, false, bFinish ? "QUEUE_FINISHED" : "QUEUE_REMOVED");
 			}
 			else
 			{
@@ -29870,6 +29886,7 @@ void CvCity::produce(UnitTypes eTrainUnit, UnitAITypes eTrainAIUnit, bool bCanOv
 			}
 		}
 		SetUnitInvestment(pUnit->getUnitClassType(), false);
+		if (AIUnitDecisionTrace::Configured()) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_TRAIN, eTrainUnit, 0);
 
 		if (kOwner.GetPlayerTraits()->IsConquestOfTheWorld())
 		{
@@ -30000,6 +30017,7 @@ void CvCity::produce(BuildingTypes eConstructBuilding, bool bCanOverflow)
 
 	int iProductionNeeded = getProductionNeeded(eConstructBuilding) * 100;
 	bool bResult = CreateBuilding(eConstructBuilding);
+	if (AIUnitDecisionTrace::Configured() && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CONSTRUCT, eConstructBuilding, 0);
 	DEBUG_VARIABLE(bResult);
 	ASSERT(bResult, "CreateBuilding failed");
 
@@ -30070,6 +30088,7 @@ void CvCity::produce(ProjectTypes eCreateProject, bool bCanOverflow)
 	CvPlayerAI& kOwner = GET_PLAYER(getOwner());
 
 	bool bResult = CreateProject(eCreateProject);
+	if (AIUnitDecisionTrace::Configured() && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CREATE, eCreateProject, 0);
 	DEBUG_VARIABLE(bResult);
 	ASSERT(bResult, "Failed to create project");
 
@@ -31017,8 +31036,9 @@ bool CvCity::IsCanPurchase(const std::vector<int>& vPreExistingBuildings, bool b
 
 //	--------------------------------------------------------------------------------
 // purchase something at the city
-CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield)
+CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int traceDecisionID)
 {
+	AIUnitDecisionTrace::Action traceAction(this, traceDecisionID, ORDER_TRAIN, eUnitType, "UNIT_PURCHASE", ePurchaseYield==YIELD_GOLD ? "GOLD" : ePurchaseYield==YIELD_FAITH ? "FAITH" : "UNKNOWN");
 	// Can we actually buy this thing?
 	if (eUnitType==NO_UNIT || !IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, eUnitType, NO_BUILDING, NO_PROJECT, ePurchaseYield))
 		return NULL;
@@ -31253,6 +31273,8 @@ CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield)
 		return NULL;
 	}
 
+	if (AIUnitDecisionTrace::Configured() && (pNewUnit || (bInvest && pGameUnit->GetUnitClassType()!=NO_UNITCLASS && IsUnitInvestment((UnitClassTypes)pGameUnit->GetUnitClassType())))) traceAction.Success(bInvest ? "UNIT_INVESTMENT" : "UNIT_PURCHASE");
+
 	if (!bInvest)
 	{
 		//autoupgrade
@@ -31290,6 +31312,7 @@ CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield)
 
 bool CvCity::PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseYield)
 {
+	AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_CONSTRUCT, eBuildingType, ePurchaseYield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE", ePurchaseYield==YIELD_GOLD ? "GOLD" : ePurchaseYield==YIELD_FAITH ? "FAITH" : "UNKNOWN");
 	// Can we actually buy this thing?
 	if (eBuildingType==NO_BUILDING || !IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, NO_UNIT, eBuildingType, NO_PROJECT, ePurchaseYield))
 		return false;
@@ -31446,6 +31469,10 @@ bool CvCity::PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseY
 		return false;
 	}
 
+	if (AIUnitDecisionTrace::Configured()) {
+		const bool traceInvest = ePurchaseYield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS;
+		if (!traceInvest || (pGameBuilding->GetBuildingClassType()!=NO_BUILDINGCLASS && IsBuildingInvestment(pGameBuilding->GetBuildingClassType()))) traceAction.Success(traceInvest ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE");
+	}
 	return true;
 }
 
@@ -31938,7 +31965,7 @@ void CvCity::doProduction(bool bAllowNoProduction)
 	{
 		if (!isProduction() || isProductionProcess() || AI_isChooseProductionDirty())
 		{
-			AI_chooseProduction(false /*bInterruptWonders*/, false);
+			AI_chooseProduction(false /*bInterruptWonders*/, false, !isProduction() ? "TURN_NO_PRODUCTION" : isProductionProcess() ? "TURN_PROCESS_RECONSIDERATION" : "TURN_DIRTY_RECONSIDERATION");
 		}
 	}
 

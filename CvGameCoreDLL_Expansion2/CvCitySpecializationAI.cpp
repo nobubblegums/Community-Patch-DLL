@@ -361,7 +361,7 @@ void CvCitySpecializationAI::DoTurn()
 			{
 				if(pLoopCity->isProductionBuilding() && pLoopCity->AI_isChooseProductionDirty())
 				{
-					pLoopCity->AI_chooseProduction(m_bInterruptWonders, m_bInterruptBuildings);
+					pLoopCity->AI_chooseProduction(m_bInterruptWonders, m_bInterruptBuildings, "SPECIALIZATION_INTERRUPT");
 				}
 			}
 		}
