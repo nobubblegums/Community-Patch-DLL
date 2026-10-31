@@ -807,17 +807,14 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	for(int iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
 		AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, iUnitLoop);
-		if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event((UnitTypes)iUnitLoop == eIgnoreUnit ? "FILTER_IGNORED" : "UNIT_ENUMERATED", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT, iUnitLoop, 0, 0);
 		// Make sure this unit can be built now
 		if ((UnitTypes)iUnitLoop != eIgnoreUnit && m_pCity->canTrain((UnitTypes)iUnitLoop, (m_pCity->isProductionUnit() && (UnitTypes)iUnitLoop == m_pCity->getProductionUnit())))
 		{
 			// Automated cities won't build units except workers and work boats, or any other civilian with a work rate
 			CvUnitEntry* pUnitEntry = GC.getUnitInfo((UnitTypes)iUnitLoop);
 			if (m_pCity->isHumanAutomated())
-				if (!MOD_BALANCE_VP || pUnitEntry->GetWorkRate() == 0 || pUnitEntry->GetCombat() > 0 || pUnitEntry->GetRangedCombat() > 0) {
-					if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("FILTER_AUTOMATION", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT, iUnitLoop, 0, 0);
+				if (!MOD_BALANCE_VP || pUnitEntry->GetWorkRate() == 0 || pUnitEntry->GetCombat() > 0 || pUnitEntry->GetRangedCombat() > 0)
 					continue;
-				}
 
 			buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
 			buildable.m_iIndex = iUnitLoop;
@@ -1052,7 +1049,6 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 
 	if (m_Buildables.size() <= 0)
 	{
-		if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("FALLBACK_PRE", "", m_pCity->getOwner(), m_pCity->GetID(), -1, -1, 0, m_BuildablesPrecheck.size());
 		m_Buildables = m_BuildablesPrecheck;
 		if (AIUnitDecisionTrace::Enabled())
 			for (int i=0; i<m_Buildables.size(); ++i) {
@@ -1217,7 +1213,6 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 		}
 	}
 
-	if (AIUnitDecisionTrace::Enabled() && m_Buildables.empty()) AIUnitDecisionTrace::Event("NO_PRODUCTION_CHOICE", "", m_pCity->getOwner(), m_pCity->GetID(), NOT_A_CITY_BUILDABLE, -1, 0, 0);
 	//if we are building a settler or if a settler isn't even an option, then reset our count, else increase it
 	if (bPushedOrderForSettler || !HaveSettlerInBuildables(m_Buildables))
 		kPlayer.GetMilitaryAI()->ResetNumberOfTimesSettlerBuildSkippedOver();
@@ -1317,7 +1312,6 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 	for (iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
 		AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, iUnitLoop);
-		if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("HURRY_UNIT_ENUMERATED", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT, iUnitLoop, (int)bFaithPurchase, 0);
 		CvUnitEntry* pUnitEntry = GC.getUnitInfo((UnitTypes)iUnitLoop);
 		if (bFaithPurchase)
 		{
@@ -1499,7 +1493,6 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 	}
 
 	buildable.m_eBuildableType = NOT_A_CITY_BUILDABLE;
-	if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("HURRY_NO_CHOICE", "", m_pCity->getOwner(), m_pCity->GetID(), NOT_A_CITY_BUILDABLE, -1, 0, (int)bFaithPurchase);
 	return buildable;
 }
 

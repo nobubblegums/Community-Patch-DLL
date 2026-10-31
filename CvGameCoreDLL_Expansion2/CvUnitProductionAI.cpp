@@ -207,19 +207,14 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 		const UnitTypes eUnit = static_cast<UnitTypes>(iUnitLoop);
 		AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, eUnit);
 		CvUnitEntry* pkUnitInfo = GC.getUnitInfo(eUnit);
-		if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("ROLE_ENUMERATED", "t003", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, eUnitAIType, pkUnitInfo ? 1 : 0);
 		if(pkUnitInfo)
 		{
 			// Make sure it matches the requested unit AI type
-			if (!pkUnitInfo->GetUnitAIType(eUnitAIType)) {
-				if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("FILTER_ROLE", "t003", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, eUnitAIType, 0);
+			if (!pkUnitInfo->GetUnitAIType(eUnitAIType))
 				continue;
-			}
 
-			if (!bAllowStrategicResource && pkUnitInfo->GetResourceType() != NO_RESOURCE) {
-				if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("FILTER_RESOURCE", "t003", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, 0, 0);
+			if (!bAllowStrategicResource && pkUnitInfo->GetResourceType() != NO_RESOURCE)
 				continue;
-			}
 
 			// Make sure this unit can be built now
 			if(m_pCity->canTrain(eUnit, (m_pCity->isProductionUnit() && eUnit == m_pCity->getProductionUnit())))

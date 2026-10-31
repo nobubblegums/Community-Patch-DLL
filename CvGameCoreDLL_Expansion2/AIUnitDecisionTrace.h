@@ -15,7 +15,7 @@ namespace AIUnitDecisionTrace {
  void ProductionEvent(const CvCity*,const char*,int,int,int = 0,const char* = "NONE",const char* = "APPLIED");
  // One stack-local final action outcome; no pending or cross-turn action state.
  class Action { public: Action(const CvCity*,int,int,int,const char*,const char*); ~Action(); void Success(const char* = 0); private: const CvCity* m_city; int m_decision,m_kind,m_object; const char* m_type; const char* m_currency; bool m_success,m_enabled; Action(const Action&); Action& operator=(const Action&); };
- bool Configured(); bool Enabled(); bool Active();
+ bool Configured(); bool Enabled();
  void SetCandidate(int kind,int object=-1); void SetObject(int object);
  void Arithmetic(const char*,int,int,int,int,const char*,const char*,int,int,int);
  int NewFlavorState();

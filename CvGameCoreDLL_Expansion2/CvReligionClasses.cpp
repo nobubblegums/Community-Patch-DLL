@@ -6,7 +6,6 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
-#include "AIUnitDecisionTrace.h"
 #include "CvGameCoreDLLUtil.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
