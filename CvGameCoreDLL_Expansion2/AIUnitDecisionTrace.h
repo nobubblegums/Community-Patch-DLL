@@ -9,8 +9,8 @@ namespace AIUnitDecisionTrace {
  void DecisionAction(const char*);
  void Duration(int,int,int);
  void ProductionEvent(const CvCity*,const char*,int,int,int = 0,const char* = "NONE",const char* = "APPLIED");
- // One stack-local final action outcome; no pending or cross-turn action state.
- class Action { public: Action(const CvCity*,int,int,int,const char*,const char*); ~Action(); void Success(const char* = 0); private: const CvCity* m_city; int m_decision,m_kind,m_object; const char* m_type; const char* m_currency; bool m_success,m_enabled; Action(const Action&); Action& operator=(const Action&); };
+ // Disabled until Begin; preserves one action outcome across native early returns.
+ class Action { public: Action(); ~Action(); void Begin(const CvCity*,int,int,int,bool = false,int = 0); void Success(bool = false); private: const CvCity* m_city; int m_decision,m_kind,m_object; const char* m_type; const char* m_currency; bool m_success,m_enabled; Action(const Action&); Action& operator=(const Action&); };
  bool Configured(); bool Enabled();
  void SetCandidate(int kind,int object=-1); void SetObject(int object);
  void Arithmetic(const char*,int,int,int,int,const char*,const char*,int,int,int);
@@ -24,7 +24,8 @@ namespace AIUnitDecisionTrace {
  void ConsumeFlavorState(int);
  void Event(const char*,const char*,int,int,int,int,int,int,const char* = "");
  void Weighted(const char*,int,int,int);
- class Scope {public:Scope(const char*,int,int);~Scope();private:bool m_root,m_active;int m_kind,m_object,m_player,m_city,m_previousDecision;bool m_previousInDecision,m_previousRecommendation;const char* m_caller;Scope(const Scope&);Scope& operator=(const Scope&);};
+ // Disabled until Begin; keeps the original scope lifetime without disabled-path setup.
+ class Scope {public:Scope();void Begin(const char*,int,int);~Scope();private:bool m_root,m_active;int m_kind,m_object,m_player,m_city,m_previousDecision;bool m_previousInDecision,m_previousRecommendation;const char* m_caller;Scope(const Scope&);Scope& operator=(const Scope&);};
 
 }
 // Passive observers: gameplay mutations are performed at the call site.

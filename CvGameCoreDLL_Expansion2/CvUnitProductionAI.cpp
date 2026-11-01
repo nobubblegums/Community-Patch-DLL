@@ -127,7 +127,8 @@ void CvUnitProductionAI::TraceWeight(UnitTypes eUnit, int weight)
 /// Recommend highest-weighted unit
 UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllowStrategicResource)
 {
-	AIUnitDecisionTrace::Scope traceScope("RecommendUnit", m_pCity->getOwner(), m_pCity->GetID());
+	AIUnitDecisionTrace::Scope traceScope;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceScope.Begin("RecommendUnit", m_pCity->getOwner(), m_pCity->GetID());
 	if(eUnitAIType <= NO_UNITAI)
 	{
 		return NO_UNIT;
@@ -140,7 +141,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 	for(int iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
 		const UnitTypes eUnit = static_cast<UnitTypes>(iUnitLoop);
-		AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, eUnit);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, eUnit);
 		CvUnitEntry* pkUnitInfo = GC.getUnitInfo(eUnit);
 		if(pkUnitInfo)
 		{
@@ -168,7 +169,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iTempWeight, 0);
 				}
 
-				AIUnitDecisionTrace::SetObject(eUnit);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetObject(eUnit);
 				int iWeight = CityStrategyAIHelpers::ReweightByTurnsLeft(iTempWeight, iTurnsLeft);
 				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Recommendation(eUnit, eUnitAIType, iTempWeight, iTurnsLeft, iWeight);
 				if(iWeight > 0)
@@ -196,10 +197,11 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 
 int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation, int iFlavorWeight, bool bForPurchase, bool bFree)
 {
-	AIUnitDecisionTrace::Scope traceScope("CheckUnitBuildSanity", m_pCity->getOwner(), m_pCity->GetID());
-	AIUnitDecisionTrace::SetObject(eUnit);
+	AIUnitDecisionTrace::Scope traceScope;
 	if (MOD_AI_UNIT_DECISION_LOGGING)
 	{
+		traceScope.Begin("CheckUnitBuildSanity", m_pCity->getOwner(), m_pCity->GetID());
+		AIUnitDecisionTrace::SetObject(eUnit);
 		AIUnitDecisionTrace::Event("INPUT", "t005", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iFlavorWeight, (int)bForOperation, "FlavorWeight;ForOperation");
 		AIUnitDecisionTrace::Event("INPUT", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, (int)bForPurchase, (int)bFree, "ForPurchase;Free");
 	}

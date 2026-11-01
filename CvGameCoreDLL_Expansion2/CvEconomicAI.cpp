@@ -3233,7 +3233,8 @@ void CvEconomicAI::DoHurry()
 					if (MOD_BALANCE_UNIT_INVESTMENTS || pkUnitInfo->GetSpaceshipProject() != NO_PROJECT)
 					{
 						const UnitClassTypes eUnitClass = (UnitClassTypes)(pkUnitInfo->GetUnitClassType());
-						AIUnitDecisionTrace::Action traceAction(pSelectedCity, selection.m_iDiagnosticDecisionID, ORDER_TRAIN, eUnitType, "UNIT_INVESTMENT", "GOLD");
+						AIUnitDecisionTrace::Action traceAction;
+						if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(pSelectedCity, ORDER_TRAIN, eUnitType, YIELD_GOLD, true, selection.m_iDiagnosticDecisionID);
 						pSelectedCity->SetUnitInvestment(eUnitClass, true);
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
 						if (MOD_AI_UNIT_DECISION_LOGGING && pSelectedCity->IsUnitInvestment(eUnitClass)) traceAction.Success();
@@ -3337,7 +3338,8 @@ void CvEconomicAI::DoHurry()
 							m_pPlayer->GetHomelandAI()->LogHomelandMessage(strLogString);
 						}
 
-						AIUnitDecisionTrace::Action traceAction(pSelectedCity, selection.m_iDiagnosticDecisionID, ORDER_CONSTRUCT, eBuildingType, MOD_BALANCE_BUILDING_INVESTMENTS ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE", "GOLD");
+						AIUnitDecisionTrace::Action traceAction;
+						if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(pSelectedCity, ORDER_CONSTRUCT, eBuildingType, YIELD_GOLD, false, selection.m_iDiagnosticDecisionID);
 						//take the money...
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
 

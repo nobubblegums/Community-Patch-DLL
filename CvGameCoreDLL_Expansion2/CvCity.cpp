@@ -15659,7 +15659,8 @@ void CvCity::CheckForOperationUnits()
 						bool bInvest = MOD_BALANCE_UNIT_INVESTMENTS || (MOD_BALANCE_VP && pkUnitEntry->GetSpaceshipProject() != NO_PROJECT);
 						if (bInvest)
 						{
-							AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_TRAIN, eBestUnit, "UNIT_INVESTMENT", "GOLD");
+							AIUnitDecisionTrace::Action traceAction;
+							if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(this, ORDER_TRAIN, eBestUnit, YIELD_GOLD, true);
 							//take the money...
 							kPlayer.GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -15811,7 +15812,8 @@ void CvCity::CheckForOperationUnits()
 					bool bInvest = MOD_BALANCE_UNIT_INVESTMENTS || (MOD_BALANCE_VP && pkUnitEntry->GetSpaceshipProject() != NO_PROJECT);
 					if (bInvest)
 					{
-						AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_TRAIN, eBestUnit, "UNIT_INVESTMENT", "GOLD");
+						AIUnitDecisionTrace::Action traceAction;
+						if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(this, ORDER_TRAIN, eBestUnit, YIELD_GOLD, true);
 						//take the money...
 						kPlayer.GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -19601,7 +19603,8 @@ void CvCity::DoAnnex(bool bRaze)
 				const BuildingClassTypes eBuildingClass = pkBuildingInfo->GetBuildingClassType();
 				if (eBuildingClass != NO_BUILDINGCLASS)
 				{
-					AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_CONSTRUCT, eBuilding, "BUILDING_INVESTMENT", "NONE");
+					AIUnitDecisionTrace::Action traceAction;
+					if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(this, ORDER_CONSTRUCT, eBuilding, NO_YIELD, true);
 					SetBuildingInvestment(eBuildingClass, true);
 					if (MOD_AI_UNIT_DECISION_LOGGING && IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 				}
@@ -31036,7 +31039,8 @@ bool CvCity::IsCanPurchase(const std::vector<int>& vPreExistingBuildings, bool b
 // purchase something at the city
 CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int traceDecisionID)
 {
-	AIUnitDecisionTrace::Action traceAction(this, traceDecisionID, ORDER_TRAIN, eUnitType, "UNIT_PURCHASE", ePurchaseYield==YIELD_GOLD ? "GOLD" : ePurchaseYield==YIELD_FAITH ? "FAITH" : "UNKNOWN");
+	AIUnitDecisionTrace::Action traceAction;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(this, ORDER_TRAIN, eUnitType, ePurchaseYield, false, traceDecisionID);
 	// Can we actually buy this thing?
 	if (eUnitType==NO_UNIT || !IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, eUnitType, NO_BUILDING, NO_PROJECT, ePurchaseYield))
 		return NULL;
@@ -31271,7 +31275,7 @@ CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int
 		return NULL;
 	}
 
-	if (MOD_AI_UNIT_DECISION_LOGGING && (pNewUnit || (bInvest && pGameUnit->GetUnitClassType()!=NO_UNITCLASS && IsUnitInvestment((UnitClassTypes)pGameUnit->GetUnitClassType())))) traceAction.Success(bInvest ? "UNIT_INVESTMENT" : "UNIT_PURCHASE");
+	if (MOD_AI_UNIT_DECISION_LOGGING && (pNewUnit || (bInvest && pGameUnit->GetUnitClassType()!=NO_UNITCLASS && IsUnitInvestment((UnitClassTypes)pGameUnit->GetUnitClassType())))) traceAction.Success(bInvest);
 
 	if (!bInvest)
 	{
@@ -31310,7 +31314,8 @@ CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int
 
 bool CvCity::PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseYield)
 {
-	AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_CONSTRUCT, eBuildingType, ePurchaseYield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE", ePurchaseYield==YIELD_GOLD ? "GOLD" : ePurchaseYield==YIELD_FAITH ? "FAITH" : "UNKNOWN");
+	AIUnitDecisionTrace::Action traceAction;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(this, ORDER_CONSTRUCT, eBuildingType, ePurchaseYield);
 	// Can we actually buy this thing?
 	if (eBuildingType==NO_BUILDING || !IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, NO_UNIT, eBuildingType, NO_PROJECT, ePurchaseYield))
 		return false;
@@ -31469,7 +31474,7 @@ bool CvCity::PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseY
 
 	if (MOD_AI_UNIT_DECISION_LOGGING) {
 		const bool traceInvest = ePurchaseYield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS;
-		if (!traceInvest || (pGameBuilding->GetBuildingClassType()!=NO_BUILDINGCLASS && IsBuildingInvestment(pGameBuilding->GetBuildingClassType()))) traceAction.Success(traceInvest ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE");
+		if (!traceInvest || (pGameBuilding->GetBuildingClassType()!=NO_BUILDINGCLASS && IsBuildingInvestment(pGameBuilding->GetBuildingClassType()))) traceAction.Success();
 	}
 	return true;
 }
@@ -31963,7 +31968,7 @@ void CvCity::doProduction(bool bAllowNoProduction)
 	{
 		if (!isProduction() || isProductionProcess() || AI_isChooseProductionDirty())
 		{
-			AI_chooseProduction(false /*bInterruptWonders*/, false, !isProduction() ? "TURN_NO_PRODUCTION" : isProductionProcess() ? "TURN_PROCESS_RECONSIDERATION" : "TURN_DIRTY_RECONSIDERATION");
+			AI_chooseProduction(false /*bInterruptWonders*/, false, "TURN_RECONSIDERATION");
 		}
 	}
 

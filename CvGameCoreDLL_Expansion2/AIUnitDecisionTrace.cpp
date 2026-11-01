@@ -224,7 +224,14 @@ namespace AIUnitDecisionTrace {
 	}
 
 	int CurrentDecision() { return Enabled() ? decision : 0; }
-	void DecisionContext(const char* trigger) { if (Enabled()) decisionTrigger=trigger; }
+	void DecisionContext(const char* trigger) {
+		if (!Enabled()) return;
+		decisionTrigger=trigger;
+		if (!strcmp(trigger,"TURN_RECONSIDERATION")) {
+			const CvCity* c=GET_PLAYER((PlayerTypes)player).getCity(city);
+			if (c) decisionTrigger=!c->isProduction() ? "TURN_NO_PRODUCTION" : c->isProductionProcess() ? "TURN_PROCESS_RECONSIDERATION" : "TURN_DIRTY_RECONSIDERATION";
+		}
+	}
 	void DecisionAction(const char* action) { if (Enabled()) selectedAction=action; }
 	void Duration(int before,int turns,int after) {
 		if (!Enabled() || recommendation) return;
@@ -244,11 +251,20 @@ namespace AIUnitDecisionTrace {
 		if (Enabled() && origin==decision && player==c->getOwner() && city==c->GetID()) observedAction=true;
 		GET_SQLITE_LOGGER().BeginLogRow("AIProductionEvent").bind(++nextObservation).bind(origin).bind(PlayerName(c->getOwner()).c_str()).bind(c->getName().c_str()).bind(type).bind(KindName(k)).bind(Symbol(k,obj).c_str()).bind(currency).bind(result).execute();
 	}
-	Action::Action(const CvCity* c,int origin,int order,int obj,const char* type,const char* currency):m_city(c),m_decision(origin),m_kind(order),m_object(obj),m_type(type),m_currency(currency),m_success(false),m_enabled(false) {
+	Action::Action():m_city(NULL),m_decision(0),m_kind(-1),m_object(-1),m_type(NULL),m_currency(NULL),m_success(false),m_enabled(false) {}
+	void Action::Begin(const CvCity* c,int order,int obj,int yield,bool investment,int origin) {
 		// Shared purchase dispatchers also call these APIs with NO_UNIT/NO_BUILDING.
-		m_enabled=c && PlayerEnabled(c->getOwner()) && obj>=0 && GET_SQLITE_LOGGER().IsEnabled();
+		if (!c || !PlayerEnabled(c->getOwner()) || obj<0 || !GET_SQLITE_LOGGER().IsEnabled()) return;
+		m_city=c; m_decision=origin; m_kind=order; m_object=obj;
+		m_currency=yield==YIELD_GOLD ? "GOLD" : yield==YIELD_FAITH ? "FAITH" : yield==NO_YIELD && investment ? "NONE" : "UNKNOWN";
+		if (order==ORDER_CONSTRUCT) investment=investment || (yield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS);
+		m_type=order==ORDER_TRAIN ? (investment ? "UNIT_INVESTMENT" : "UNIT_PURCHASE") : (investment ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE");
+		m_enabled=true;
 	}
-	void Action::Success(const char* type) { m_success=true; if (type) m_type=type; }
+	void Action::Success(bool investment) {
+		m_success=true;
+		if (investment) m_type=m_kind==ORDER_TRAIN ? "UNIT_INVESTMENT" : "BUILDING_INVESTMENT";
+	}
 	Action::~Action() {
 		if (m_enabled) ProductionEvent(m_city,m_type,m_kind,m_object,m_decision,m_currency,m_success ? "APPLIED" : "FAILED");
 	}
@@ -267,7 +283,10 @@ namespace AIUnitDecisionTrace {
 	void SetObject(int obj){
 		if(Enabled())object=obj;
 	}
-	Scope::Scope(const char* caller,int p,int c):m_root(false),m_active(false),m_kind(kind),m_object(object),m_player(player),m_city(city),m_previousDecision(decision),m_previousInDecision(inDecision),m_previousRecommendation(recommendation) {
+	Scope::Scope():m_root(false),m_active(false) {}
+	void Scope::Begin(const char* caller,int p,int c) {
+		m_kind=kind; m_object=object; m_player=player; m_city=city;
+		m_previousDecision=decision; m_previousInDecision=inDecision; m_previousRecommendation=recommendation;
 		if(!Configured() || !PlayerEnabled(p))return;
 
 		if(!GET_SQLITE_LOGGER().IsEnabled())return;
