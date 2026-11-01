@@ -160,8 +160,10 @@ namespace AIUnitDecisionTrace {
 		std::map<int,int> observedPlayers;
 		std::map<Key,int> observedCities;
 		void PlayerStateRow(int p,const char* event,const char* subject,int value) {
-			observedPlayers[p]=++nextFlavorState;
-			GET_SQLITE_LOGGER().BeginLogRow("AIPlayerFlavorState").bind(observedPlayers[p]).bind(p).bind(event).bind(subject).bind(value).execute();
+			const int state=++nextFlavorState;
+			// Grand Strategy is read directly by scoring, not by the city flavor cache.
+			if (strcmp(event,"GRAND_STRATEGY")) observedPlayers[p]=state;
+			GET_SQLITE_LOGGER().BeginLogRow("AIPlayerFlavorState").bind(state).bind(p).bind(event).bind(subject).bind(value).execute();
 		}
 		void CityStateRow(const CvCity* c,const char* event,const char* subject,int value) {
 			const int state=observedCities[Key(c->getOwner(),c->GetID())]=++nextFlavorState;

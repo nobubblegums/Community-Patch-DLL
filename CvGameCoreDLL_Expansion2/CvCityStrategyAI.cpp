@@ -1152,7 +1152,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 				if (pkUnitInfo)
 				{
 					UnitAITypes eUnitAI = pkUnitInfo->GetDefaultUnitAIType();
-					GetCity()->pushOrder(ORDER_TRAIN, eUnitType, eUnitAI, false, true, false, bRush, AIUnitDecisionTrace::CurrentDecision());
+					GetCity()->pushOrder(ORDER_TRAIN, eUnitType, eUnitAI, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 					bPushedOrderForSettler = pkUnitInfo->IsFound();
 				}
 				if (selection.m_eBuildableType == CITY_BUILDABLE_UNIT_FOR_OPERATION)
@@ -1165,21 +1165,21 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 		case CITY_BUILDABLE_BUILDING:
 			{
 				BuildingTypes eBuildingType = (BuildingTypes) selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_CONSTRUCT, eBuildingType, -1, false, true, false, bRush, AIUnitDecisionTrace::CurrentDecision());
+				GetCity()->pushOrder(ORDER_CONSTRUCT, eBuildingType, -1, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 				break;
 			}
 
 		case CITY_BUILDABLE_PROJECT:
 			{
 				ProjectTypes eProjectType = (ProjectTypes) selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_CREATE, eProjectType, -1, false, true, false, bRush, AIUnitDecisionTrace::CurrentDecision());
+				GetCity()->pushOrder(ORDER_CREATE, eProjectType, -1, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 				break;
 			}
 
 		case CITY_BUILDABLE_PROCESS:
 			{
 				ProcessTypes eProcessType = (ProcessTypes)selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_MAINTAIN, eProcessType, -1, false, true, false, false, AIUnitDecisionTrace::CurrentDecision()); // ignoring rush because we can't rush a process
+				GetCity()->pushOrder(ORDER_MAINTAIN, eProcessType, -1, false, true, false, false, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0); // ignoring rush because we can't rush a process
 				break;
 			}
 		}

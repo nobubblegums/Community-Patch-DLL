@@ -4804,7 +4804,8 @@ int CvGame::getGameDatabaseId() const
 //	------------------------------------------------------------------------------------------------
 void CvGame::resolveGameDatabaseId()
 {
-	AIUnitDecisionTrace::ResetFlavorObservation();
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+		AIUnitDecisionTrace::ResetFlavorObservation();
 	m_intGameId = 0;
 
 	if (m_strGameId.IsEmpty())
