@@ -26,11 +26,26 @@ namespace AIUnitDecisionTrace {
  class Scope {public:Scope(const char*,int,int);~Scope();private:bool m_root,m_active;int m_kind,m_object,m_player,m_city,m_previousDecision;bool m_previousInDecision;const char* m_caller;Scope(const Scope&);Scope& operator=(const Scope&);};
 
 }
-#define AI_UNIT_TRACE_ARITH(contract, site, target, operation, operand) do { \
- const int traceOperand = (operand); const int traceBefore = target; \
- target operation traceOperand; \
- if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Arithmetic(contract, \
- m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, #operation, traceBefore, traceOperand, target); \
+// Passive observers: gameplay mutations are performed at the call site.
+#define AI_UNIT_TRACE_ADD(contract, site, tracker, target) do { \
+ AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "+=", tracker, (target) - (tracker), target); \
+ tracker = target; \
+} while (0)
+#define AI_UNIT_TRACE_SUB(contract, site, tracker, target) do { \
+ AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "-=", tracker, (tracker) - (target), target); \
+ tracker = target; \
+} while (0)
+#define AI_UNIT_TRACE_ASSIGN(contract, site, tracker, target) do { \
+ AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "=", tracker, target, target); \
+ tracker = target; \
+} while (0)
+#define AI_UNIT_TRACE_ROOT(contract, site, tracker, target) do { \
+ AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "=", tracker, 10, target); \
+ tracker = target; \
+} while (0)
+#define AI_UNIT_TRACE_DIV(contract, site, tracker, target) do { \
+ AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "/=", tracker, 5, target); \
+ tracker = target; \
 } while (0)
 
 
