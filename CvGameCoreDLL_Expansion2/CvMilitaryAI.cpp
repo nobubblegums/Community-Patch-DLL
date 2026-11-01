@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "AIUnitDecisionTrace.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
 #include "CvMinorCivAI.h"
@@ -459,6 +460,7 @@ void CvMilitaryAI::SetUsingStrategy(MilitaryAIStrategyTypes eStrategy, bool bVal
 	if(m_pabUsingStrategy[eStrategy] != bValue)
 	{
 		m_pabUsingStrategy[eStrategy] = bValue;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "MILITARY_STRATEGY", GetMilitaryAIStrategies()->GetEntry(eStrategy)->GetType(), bValue);
 
 		if(bValue)
 		{

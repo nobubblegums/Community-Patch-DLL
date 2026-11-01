@@ -1,12 +1,8 @@
 #pragma once
 #ifndef AI_UNIT_DECISION_TRACE_H
 #define AI_UNIT_DECISION_TRACE_H
-#include <string>
-#include <vector>
 class CvCity;
 namespace AIUnitDecisionTrace {
- struct Component { std::string source; int value; Component(const char* s,int v):source(s),value(v) {} };
- typedef std::vector<Component> Components;
  enum { PROCESS_UNIT_PROXY = -2 }; // Diagnostic candidate context; never a native buildable.
  int CurrentDecision();
  void DecisionContext(const char*);
@@ -18,12 +14,16 @@ namespace AIUnitDecisionTrace {
  bool Configured(); bool Enabled();
  void SetCandidate(int kind,int object=-1); void SetObject(int object);
  void Arithmetic(const char*,int,int,int,int,const char*,const char*,int,int,int);
- int NewFlavorState();
+ void ResetFlavorObservation();
+ bool PlayerEnabled(int);
+ void PlayerFlavorState(int,const char*,const char*,int);
+ int CityFlavorState(const CvCity*,const char*,const char*,int);
+ void Reject(const char*,bool,int = 0);
+ void Recommendation(int,int,int,int,int);
  void ConsumeFlavorState(int);
- void Flavor(int,int,int,int,int,const Components&,bool); void FlavorStatus(bool);
  void Event(const char*,const char*,int,int,int,int,int,int,const char* = "");
  void Weighted(const char*,int,int,int);
- class Scope {public:Scope(const char*,int,int);~Scope();private:bool m_root,m_active;int m_kind,m_object,m_player,m_city,m_previousDecision;bool m_previousInDecision;const char* m_caller;Scope(const Scope&);Scope& operator=(const Scope&);};
+ class Scope {public:Scope(const char*,int,int);~Scope();private:bool m_root,m_active;int m_kind,m_object,m_player,m_city,m_previousDecision;bool m_previousInDecision,m_previousRecommendation;const char* m_caller;Scope(const Scope&);Scope& operator=(const Scope&);};
 
 }
 // Passive observers: gameplay mutations are performed at the call site.

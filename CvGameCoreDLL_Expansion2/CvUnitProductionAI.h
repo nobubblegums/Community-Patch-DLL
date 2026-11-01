@@ -18,7 +18,6 @@
 //!  - Object created by CvCityStrategyAI (so one per city)
 //!  - Uses flavor-based weighting choices (similar to one used for policies and techs)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#include "AIUnitDecisionTrace.h"
 class CvUnitProductionAI
 {
 public:
@@ -39,8 +38,7 @@ public:
 	int GetWeight(UnitTypes eUnit);
 	void TraceWeight(UnitTypes eUnit, int weight);
 	void TraceConsumeFlavorState();
-	void TraceFlavorComponents(int flavor, int effective, const AIUnitDecisionTrace::Components& parts, bool available);
-	void TraceFlavorUpdateComplete();
+	void TraceFlavorUpdateComplete(int state) { m_traceFlavorState = state; }
 
 	// Recommend highest-weighted unit
 	int CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation, int iFlavorWeight, bool bForPurchase = false, bool bFree = false);
@@ -54,16 +52,7 @@ private:
 	// Private data
 	CvCity* m_pCity;
 	CvUnitXMLEntries* m_pUnits;
-	struct FlavorPart { int flavor, effective, coefficient; FlavorPart(int f,int e,int c):flavor(f),effective(e),coefficient(c) {} };
-	std::vector<std::vector<FlavorPart> > m_traceFlavors;
-	bool m_traceFlavorsComplete;
 	int m_traceFlavorState;
-	std::vector<AIUnitDecisionTrace::Components> m_traceComponents;
-	std::vector<bool> m_traceComponentsAvailable;
-	std::vector<int> m_traceFlavorValues, m_tracePreviousValues;
-	std::vector<AIUnitDecisionTrace::Components> m_tracePreviousComponents;
-	std::vector<bool> m_tracePreviousAvailable;
-	int m_tracePreviousState;
 	CvWeightedVector<int> m_UnitAIWeights;
 	CvWeightedVector<int> m_Buildables;
 };

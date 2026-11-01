@@ -421,6 +421,7 @@ void CvEconomicAI::SetUsingStrategy(EconomicAIStrategyTypes eStrategy, bool bVal
 	if(m_pabUsingStrategy[eStrategy] != bValue)
 	{
 		m_pabUsingStrategy[eStrategy] = bValue;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "ECONOMIC_STRATEGY", GetEconomicAIStrategies()->GetEntry(eStrategy)->GetType(), bValue);
 
 		if(bValue)
 		{

@@ -154,7 +154,6 @@ struct CvCityBuildable
 //!    specialize, switch production, etc.
 //!  - Oversees both the city governor AI and the AI managing what the city is building
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#include "AIUnitDecisionTrace.h"
 class CvCityStrategyAI: public CvFlavorRecipient
 {
 public:
@@ -221,12 +220,8 @@ private:
 
 	void ReweightByDuration(CvWeightedVector<CvCityBuildable>& options);
 
-	// Current logging-only flavor components; never serialized.
-	void TraceFlavorSet(FlavorTypes eFlavor, int value);
-	void TraceFlavorDelta(FlavorTypes eFlavor, int value, const char* source);
-	void TraceCityFlavorDelta(FlavorTypes eFlavor, int value, const char* source);
-	std::vector<AIUnitDecisionTrace::Components> m_traceFlavorComponents;
-	std::vector<bool> m_traceFlavorAvailable;
+	// Passive notification of an actual base-vector reset; no diagnostic flavor shadow.
+	void TraceFlavorReset();
 
 	// Logging functions
 	void LogFlavorChange(FlavorTypes eFlavor, int change, const char* reason, bool start);

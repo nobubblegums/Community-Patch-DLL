@@ -172,7 +172,8 @@
 	  - RegisterTable() creates the table in stats.db if it does not exist. If an existing table's
 	    schema differs from the supplied TableDef (including the implicit columns), the table is
 	    dropped and recreated.
-	  - When MOD_SQLITE_LOGGING is disabled, RegisterTable()/BeginLogRow() do nothing and stats.db is
+	  - Ordinary tables require MOD_SQLITE_LOGGING. Task 2U tables explicitly opt in at registration.
+	    When both logging options are disabled, RegisterTable()/BeginLogRow() do nothing and stats.db is
 	    never created or modified.
 	  - BeginLogBatch() likewise returns a disabled, do-nothing BatchWriter when logging is disabled or
 	    the table is not registered. A BatchWriter buffers rows and only writes them on an auto-flush
@@ -188,6 +189,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 
 #include "CvGameDatabase.h"
 
@@ -322,7 +324,8 @@ public:
 	//! Returns the process-wide singleton instance.
 	static SqliteLogger& getInstance();
 
-	//! True when SQLite logging is active (MOD_SQLITE_LOGGING enabled and database opened).
+	//! Backend available when either logging option is enabled and the database is open.
+	//! Ordinary emitters must still use MOD_SQLITE_LOGGING.
 	bool IsEnabled();
 
 	//! Resolves a game UUID (32-char uppercase hex, dashes stripped) to its compact integer id in the
@@ -332,7 +335,8 @@ public:
 	//! Registers (and creates/recreates if needed) a table with the given schema. No-op when disabled.
 	//! Implicit leading GameId (INT), mapping to GUID, and Turn (INT) columns are prepended automatically; callers must
 	//! not include them in kColumns. Duplicate column names (case-insensitive) are rejected.
-	void RegisterTable(const std::string& strTableName, const TableDef& kColumns);
+	//! bTask2U selects the independent AI_UNIT_DECISION_LOGGING gate.
+	void RegisterTable(const std::string& strTableName, const TableDef& kColumns, bool bTask2U = false);
 
 	//! Begins a row insert for a previously registered table. Returns a disabled Statement on error.
 	//! The implicit GameId and Turn values are bound automatically, so the caller binds only its own
@@ -378,6 +382,7 @@ private:
 	bool m_bOpen;
 
 	SchemaMap m_registeredTableSchemas;
+	std::set<std::string> m_task2UTables;
 	InsertMap m_preparedInserts;
 };
 

@@ -10,6 +10,7 @@
 #include "CvGameCoreUtils.h"
 #include "CvInternalGameCoreUtils.h"
 #include "CvGame.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvMap.h"
 #include "CvPlot.h"
 #include "CvPlayerAI.h"
@@ -4803,6 +4804,7 @@ int CvGame::getGameDatabaseId() const
 //	------------------------------------------------------------------------------------------------
 void CvGame::resolveGameDatabaseId()
 {
+	AIUnitDecisionTrace::ResetFlavorObservation();
 	m_intGameId = 0;
 
 	if (m_strGameId.IsEmpty())

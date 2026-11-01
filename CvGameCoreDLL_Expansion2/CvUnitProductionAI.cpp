@@ -23,9 +23,7 @@
 CvUnitProductionAI::CvUnitProductionAI(CvCity* pCity,  CvUnitXMLEntries* pUnits):
 	m_pCity(pCity),
 	m_pUnits(pUnits),
-	m_traceFlavorsComplete(false),
-	m_traceFlavorState(-1),
-	m_tracePreviousState(-1)
+	m_traceFlavorState(-1)
 {
 }
 
@@ -39,13 +37,7 @@ void CvUnitProductionAI::Reset()
 {
 	ASSERT(m_pUnits != NULL, "Unit Production AI init failure: unit entries are NULL");
 
-	m_traceFlavors.clear();
-	m_traceComponents.clear();
-	m_traceComponentsAvailable.clear();
-	m_traceFlavorValues.clear();
 	m_traceFlavorState = -1;
-	m_traceFlavorsComplete = AIUnitDecisionTrace::Configured();
-	if (m_traceFlavorsComplete && m_pUnits) m_traceFlavors.resize(m_pUnits->GetNumUnits());
 	m_UnitAIWeights.clear();
 
 	// Loop through reading each one and add an entry with 0 weight to our vector
@@ -69,16 +61,7 @@ void CvUnitProductionAI::Read(FDataStream& kStream)
 {
 	CvStreamLoadVisitor serialVisitor(kStream);
 	Serialize(*this, serialVisitor);
-	m_traceFlavors.clear();
-	m_traceComponents.clear();
-	m_traceComponentsAvailable.clear();
-	m_traceFlavorValues.clear();
-	m_traceFlavorsComplete = false;
 	m_traceFlavorState = -1;
-	m_tracePreviousState = -1;
-	m_tracePreviousComponents.clear();
-	m_tracePreviousAvailable.clear();
-	m_tracePreviousValues.clear();
 }
 
 /// Serialization write
@@ -99,42 +82,6 @@ FDataStream& operator<<(FDataStream& saveTo, const CvUnitProductionAI& readFrom)
 	return saveTo;
 }
 
-void CvUnitProductionAI::TraceFlavorComponents(int flavor, int effective, const AIUnitDecisionTrace::Components& parts, bool available)
-{
-	if (!m_traceFlavorsComplete || flavor < 0) return;
-	if (m_traceComponents.size() <= (size_t)flavor) {
-		m_traceComponents.resize(flavor + 1);
-		m_traceComponentsAvailable.resize(flavor + 1, false);
-		m_traceFlavorValues.resize(flavor + 1, 0);
-	}
-	m_traceFlavorValues[flavor] = effective;
-	m_traceComponents[flavor] = parts;
-	m_traceComponentsAvailable[flavor] = available;
-}
-
-void CvUnitProductionAI::TraceFlavorUpdateComplete()
-{
-	if (!m_traceFlavorsComplete) return;
-	bool same = m_tracePreviousState >= 0 && m_traceFlavorValues == m_tracePreviousValues &&
-		m_traceComponentsAvailable == m_tracePreviousAvailable && m_traceComponents.size() == m_tracePreviousComponents.size();
-	for (size_t f=0; same && f<m_traceComponents.size(); ++f) {
-		const AIUnitDecisionTrace::Components& a=m_traceComponents[f];
-		const AIUnitDecisionTrace::Components& b=m_tracePreviousComponents[f];
-		if (a.size()!=b.size()) { same=false; break; }
-		for (size_t i=0; same && i<a.size(); ++i) {
-			bool found=false;
-			for (size_t j=0; j<b.size(); ++j)
-				if (a[i].source==b[j].source && a[i].value==b[j].value) { found=true; break; }
-			if (!found) same=false;
-		}
-	}
-	m_traceFlavorState = same ? m_tracePreviousState : AIUnitDecisionTrace::NewFlavorState();
-	m_tracePreviousState = m_traceFlavorState;
-	m_tracePreviousValues = m_traceFlavorValues;
-	m_tracePreviousComponents = m_traceComponents;
-	m_tracePreviousAvailable = m_traceComponentsAvailable;
-}
-
 /// Establish weights for one flavor; can be called multiple times to layer strategies
 void CvUnitProductionAI::AddFlavorWeights(FlavorTypes eFlavor, int iWeight)
 {
@@ -148,9 +95,7 @@ void CvUnitProductionAI::AddFlavorWeights(FlavorTypes eFlavor, int iWeight)
 		if(entry)
 		{
 			// Set its weight by looking at unit's weight for this flavor and using iWeight multiplier passed in
-			const int coefficient = entry->GetFlavorValue(eFlavor);
-			m_UnitAIWeights.IncreaseWeight(iUnit, coefficient * iWeight);
-			if (m_traceFlavorsComplete && coefficient) m_traceFlavors[iUnit].push_back(FlavorPart(eFlavor, iWeight, coefficient));
+			m_UnitAIWeights.IncreaseWeight(iUnit, entry->GetFlavorValue(eFlavor) * iWeight);
 		}
 	}
 }
@@ -163,7 +108,7 @@ int CvUnitProductionAI::GetWeight(UnitTypes eUnit)
 		return 1;
 
 	const int weight = m_UnitAIWeights.GetWeight(eUnit);
-	if (AIUnitDecisionTrace::Enabled()) TraceWeight(eUnit, weight);
+	if (MOD_AI_UNIT_DECISION_LOGGING) TraceWeight(eUnit, weight);
 	return weight;
 }
 
@@ -174,19 +119,9 @@ void CvUnitProductionAI::TraceConsumeFlavorState()
 
 void CvUnitProductionAI::TraceWeight(UnitTypes eUnit, int weight)
 {
-	if (!AIUnitDecisionTrace::Enabled()) return;
+	if (!MOD_AI_UNIT_DECISION_LOGGING) return;
 	TraceConsumeFlavorState();
 	AIUnitDecisionTrace::Event("CACHED_WEIGHT", "t002", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, weight, 0);
-	bool complete = m_traceFlavorsComplete && eUnit >= 0 && eUnit < (int)m_traceFlavors.size();
-	int sum = 0;
-	if (complete) for (size_t i=0; i<m_traceFlavors[eUnit].size(); ++i) sum += m_traceFlavors[eUnit][i].effective * m_traceFlavors[eUnit][i].coefficient;
-	complete = complete && sum == weight;
-	AIUnitDecisionTrace::FlavorStatus(complete);
-	if (complete) for (size_t i=0; i<m_traceFlavors[eUnit].size(); ++i) {
-		const FlavorPart& part = m_traceFlavors[eUnit][i];
-		const bool available = part.flavor < (int)m_traceComponentsAvailable.size() && m_traceComponentsAvailable[part.flavor];
-		AIUnitDecisionTrace::Flavor(eUnit, part.flavor, part.effective, part.coefficient, part.effective * part.coefficient, available ? m_traceComponents[part.flavor] : AIUnitDecisionTrace::Components(), available);
-	}
 }
 
 /// Recommend highest-weighted unit
@@ -222,7 +157,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 				// Update weight based on turns to construct
 				int iTurnsLeft = m_pCity->getProductionTurnsLeft(eUnit, 0);
 				int iTempWeight = m_UnitAIWeights.GetWeight(eUnit);
-				if (AIUnitDecisionTrace::Enabled()) TraceWeight(eUnit, iTempWeight);
+				if (MOD_AI_UNIT_DECISION_LOGGING) TraceWeight(eUnit, iTempWeight);
 				if (iTempWeight == 0)
 				{
 					const int iNumFlavors = GC.getNumFlavorTypes();
@@ -230,12 +165,12 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 					{
 						iTempWeight += pkUnitInfo->GetFlavorValue(iFlavorLoop);
 					}
-					if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iTempWeight, 0);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iTempWeight, 0);
 				}
 
 				AIUnitDecisionTrace::SetObject(eUnit);
 				int iWeight = CityStrategyAIHelpers::ReweightByTurnsLeft(iTempWeight, iTurnsLeft);
-				if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RECOMMEND_DURATION", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iTempWeight, iWeight);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Recommendation(eUnit, eUnitAIType, iTempWeight, iTurnsLeft, iWeight);
 				if(iWeight > 0)
 					m_Buildables.push_back(iUnitLoop, iWeight);
 			}
@@ -248,7 +183,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 	{
 		m_Buildables.StableSortItems();
 		LogPossibleBuilds(eUnitAIType);
-		if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("ROLE_RECOMMENDED", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, m_Buildables.GetElement(0), eUnitAIType, m_Buildables.GetWeight(0));
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("ROLE_RECOMMENDED", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, m_Buildables.GetElement(0), eUnitAIType, m_Buildables.GetWeight(0));
 		return (UnitTypes)m_Buildables.GetElement(0);
 	}
 
@@ -263,7 +198,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 {
 	AIUnitDecisionTrace::Scope traceScope("CheckUnitBuildSanity", m_pCity->getOwner(), m_pCity->GetID());
 	AIUnitDecisionTrace::SetObject(eUnit);
-	if (AIUnitDecisionTrace::Enabled())
+	if (MOD_AI_UNIT_DECISION_LOGGING)
 	{
 		AIUnitDecisionTrace::Event("INPUT", "t005", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iFlavorWeight, (int)bForOperation, "FlavorWeight;ForOperation");
 		AIUnitDecisionTrace::Event("INPUT", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, (int)bForPurchase, (int)bFree, "ForPurchase;Free");
@@ -274,7 +209,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	if (MOD_AI_UNIT_DECISION_LOGGING) traceBonus = iBonus;
 
 	if(iFlavorWeight < 1)
-		{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t005", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NONPOSITIVE_INPUT_WEIGHT"); return traceResult; }
+		return SR_IMPOSSIBLE;
 
 	int traceFlavorWeight = 0;
 	if (MOD_AI_UNIT_DECISION_LOGGING) traceFlavorWeight = iFlavorWeight;
@@ -285,7 +220,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 
 	CvUnitEntry* pkUnitEntry = GC.getUnitInfo(eUnit);
 	if (!pkUnitEntry)
-		{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t005", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "UNIT_INFO_UNAVAILABLE"); return traceResult; }
+		return SR_IMPOSSIBLE;
 
 	bool bCombat = pkUnitEntry->GetCombat() > 0 || pkUnitEntry->GetRangedCombat() > 0;
 	bool bNeedsSupply = (pkUnitEntry->GetCombat() > 0 || pkUnitEntry->GetRangedCombat() > 0) && !pkUnitEntry->IsNoSupply();
@@ -293,24 +228,28 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	CvPlayerAI& kPlayer = GET_PLAYER(m_pCity->getOwner());
 	if (!bFree && bForPurchase && !m_pCity->IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, eUnit, NO_BUILDING, NO_PROJECT, YIELD_GOLD))
 	{
-		{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "GOLD_PURCHASE_UNAVAILABLE"); return traceResult; }
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("GOLD_PURCHASE_UNAVAILABLE", false);
+		return SR_IMPOSSIBLE;
 	}
 
 	if (!bFree && !bForPurchase && m_pCity->IsPuppet())
 	{
-		{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "PUPPET_CANNOT_TRAIN"); return traceResult; }
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("PUPPET_CANNOT_TRAIN", false);
+		return SR_IMPOSSIBLE;
 	}
 
 	bool bDesperate = m_pCity->isUnderSiege();
 	if (!bFree && bDesperate && !bCombat)
 	{
-		{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "CITY_UNDER_SIEGE_NONCOMBAT_UNIT"); return traceResult; }
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_UNDER_SIEGE_NONCOMBAT_UNIT", false);
+		return SR_STRATEGY;
 	}
 
 	// Don't build units in underdeveloped cities
 	if (m_pCity->GetCityBuildings()->GetNumBuildings() < 2 && !bDesperate && !bForPurchase)
 	{
-		{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t007", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "CITY_UNDERDEVELOPED"); return traceResult; }
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_UNDERDEVELOPED", false);
+		return SR_STRATEGY;
 	}
 
 	// can we build an upgraded version of this unit in any of our cities?
@@ -321,7 +260,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		{
 			if (pkUnitEntry->GetUpgradeUnitClass(*it))
 			{
-				{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t007", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "UPGRADED_UNIT_AVAILABLE"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("UPGRADED_UNIT_AVAILABLE", false);
+				return SR_STRATEGY;
 			}
 		}
 	}
@@ -335,7 +275,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			int iTurnsLeft = kPlayer.getTurnsToBankruptcy(iAverageGoldPerUnit);
 
 			if (iTurnsLeft < 9)
-				{ const int traceResult = SR_MAINTENANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t008", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "UNIT_MAINTENANCE_BANKRUPTCY"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("UNIT_MAINTENANCE_BANKRUPTCY", false);
+				return SR_MAINTENANCE;
+			}
 			else if (iTurnsLeft < 17)
 			{
 				iBonus -= iAverageGoldPerUnit*25;
@@ -363,7 +306,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		}
 
 		if (!bHavePlot)
-			{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t009", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NO_COMBAT_UNIT_PLACEMENT"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_COMBAT_UNIT_PLACEMENT", false);
+			return SR_IMPOSSIBLE;
+		}
 	}
 
 	int iNumExplorers = kPlayer.GetNumUnitsWithUnitAI(UNITAI_EXPLORE, true, true);
@@ -393,11 +339,20 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	if (bNeedsSupply)
 	{
 		if (pkUnitEntry->GetDomainType() == DOMAIN_LAND && pkUnitEntry->GetDefaultUnitAIType() != UNITAI_EXPLORE && iNumLandUnits >= kPlayer.GetMilitaryAI()->GetRecommendLandArmySize())
-			{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t011", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "RECOMMENDED_LAND_FORCE_REACHED"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_LAND_FORCE_REACHED", false);
+			return SR_UNITSUPPLY;
+		}
 		else if (pkUnitEntry->GetDomainType() == DOMAIN_SEA && iNumSeaUnits >= kPlayer.GetMilitaryAI()->GetRecommendNavySize())
-			{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t011", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "RECOMMENDED_NAVY_REACHED"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_NAVY_REACHED", false);
+				return SR_UNITSUPPLY;
+			}
 		else if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_EXPLORE && iNumExplorers >= kPlayer.GetMilitaryAI()->GetRecommendedExplorers())
-			{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t011", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "RECOMMENDED_EXPLORERS_REACHED"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_EXPLORERS_REACHED", false);
+				return SR_UNITSUPPLY;
+			}
 	}
 
 	//only war with majors count
@@ -407,7 +362,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (bNeedsSupply)
 		{
 			if (iNumTotalUnits > max(4, ((kPlayer.GetCurrentEra() + 3) * max(1, kPlayer.getNumCities()))))
-				{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t012", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MINOR_TOTAL_FORCE_LIMIT"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_TOTAL_FORCE_LIMIT", false);
+				return SR_UNITSUPPLY;
+			}
 
 			if (pkUnitEntry->GetDomainType() == DOMAIN_SEA)
 			{
@@ -429,7 +387,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 					}
 				}
 				else
-					{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t012", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MINOR_RECOMMENDED_NAVY_REACHED"); return traceResult; }
+					{
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_RECOMMENDED_NAVY_REACHED", false);
+						return SR_UNITSUPPLY;
+					}
 			}
 			else if (pkUnitEntry->GetDomainType() == DOMAIN_LAND)
 			{
@@ -451,7 +412,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 					}
 				}
 				else
-					{ const int traceResult = SR_UNITSUPPLY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t012", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MINOR_RECOMMENDED_LAND_FORCE_REACHED"); return traceResult; }
+					{
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_RECOMMENDED_LAND_FORCE_REACHED", false);
+						return SR_UNITSUPPLY;
+					}
 			}
 		}
 	}
@@ -467,7 +431,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{
 				CvUnit* pGarrison = m_pCity->GetGarrisonedUnit();
 				if (pGarrison->getDomainType() == DOMAIN_LAND)
-					{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t013", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "SMALL_LANDMASS_ALREADY_GARRISONED"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SMALL_LANDMASS_ALREADY_GARRISONED", false);
+					return SR_USELESS;
+				}
 			}
 		}
 	}
@@ -531,7 +498,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 			else
 			{
-				{ const int traceResult = SR_IMPOSSIBLE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t014", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "REQUIRED_RESOURCE_UNAVAILABLE"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("REQUIRED_RESOURCE_UNAVAILABLE", false);
+				return SR_IMPOSSIBLE;
 			}
 		}
 		//Check for specific resource usage by units.
@@ -545,7 +513,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				{
 					if(kPlayer.getNumResourceAvailable(eAluminumResource, false) <= (kPlayer.GetNumAluminumStillNeededForSpaceship() + kPlayer.GetNumAluminumStillNeededForCoreCities()))
 					{
-						{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t014", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "ALUMINUM_RESERVED_FOR_SPACESHIP_AND_CORE_CITIES"); return traceResult; }
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ALUMINUM_RESERVED_FOR_SPACESHIP_AND_CORE_CITIES", false);
+						return SR_STRATEGY;
 					}
 				}
 			}
@@ -604,7 +573,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			int iNum = kPlayer.GetNumUnitsWithUnitAI(UNITAI_CITY_BOMBARD, true);
 			if (iNum < iTotalAlready)
 			{
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t017", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "CITY_ATTACK_SUPPORT_EXCEEDS_BOMBARD_UNITS"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_ATTACK_SUPPORT_EXCEEDS_BOMBARD_UNITS", false);
+				return SR_USELESS;
 			}
 			else
 			{
@@ -678,10 +648,16 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_CARRIER_SEA)
 		{
 			if (kPlayer.isMinorCiv())
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t020", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MINOR_CIV_CARRIER"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_CIV_CARRIER", false);
+				return SR_USELESS;
+			}
 
 			if (!bForOperation && !MilitaryAIHelpers::IsTestStrategy_NeedAirCarriers(&kPlayer))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t020", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "AIR_CARRIER_NOT_NEEDED"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AIR_CARRIER_NOT_NEEDED", false);
+				return SR_BALANCE;
+			}
 		}
 
 		//Need Explorers?
@@ -715,7 +691,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{
 				// Are we an actual port city?
 				if (!m_pCity->IsConnectedToOcean())
-					{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t021", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "CITY_NOT_CONNECTED_TO_OCEAN"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_NOT_CONNECTED_TO_OCEAN", false);
+					return SR_USELESS;
+				}
 
 				int iCurrent = iNumSeaUnits;
 				int iDesired = kPlayer.GetMilitaryAI()->GetRecommendNavySize();
@@ -871,7 +850,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			case UNITAI_ATTACK_AIR:
 			{
 				if (ourBombers * 2 > ourFighters * 3)
-					{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t023", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "BOMBERS_EXCEED_FIGHTER_BALANCE"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("BOMBERS_EXCEED_FIGHTER_BALANCE", false);
+					return SR_BALANCE;
+				}
 
 				iBonus += 2000 + emptySlots*100;
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t023", 26, traceBonus, iBonus);
@@ -880,7 +862,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			case UNITAI_DEFENSE_AIR:
 			{
 				if (ourFighters * 2 > ourBombers * 3)
-					{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t023", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "FIGHTERS_EXCEED_BOMBER_BALANCE"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("FIGHTERS_EXCEED_BOMBER_BALANCE", false);
+					return SR_BALANCE;
+				}
 
 				iBonus += 2000 + emptySlots*100;
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t023", 27, traceBonus, iBonus);
@@ -949,18 +934,23 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (MOD_BALANCE_VP && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_MESSENGER)
 		{
 			if (!kPlayer.HasMetValidMinorCiv())
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t026", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NO_MET_VALID_MINOR_CIV"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_MET_VALID_MINOR_CIV", false);
+				return SR_USELESS;
+			}
 
 			//There's a diplomat waiting here? Abort!
 			if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_MESSENGER, m_pCity->getOwner()) > 0)
 			{
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t026", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MESSENGER_ALREADY_IN_CITY"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MESSENGER_ALREADY_IN_CITY", false);
+				return SR_USELESS;
 			}
 
 			//There's 2 sitting around? Abort!
 			if (kPlayer.GetNumUnitsWithUnitAI(UNITAI_MESSENGER, true) > 3)
 			{
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t026", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MESSENGER_COUNT_EXCEEDS_LIMIT"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MESSENGER_COUNT_EXCEEDS_LIMIT", false);
+				return SR_USELESS;
 			}
 
 			int iInfluence = 0;
@@ -994,7 +984,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 			else
 			{
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t026", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "DIPLOMAT_NEED_STRATEGIES_INACTIVE"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("DIPLOMAT_NEED_STRATEGIES_INACTIVE", false);
+				return SR_USELESS;
 			}
 
 			if (MOD_BALANCE_VP)
@@ -1015,7 +1006,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			// For the AI, spaceship production is controlled in AI_doSpaceshipAndUtopiaProduction, overriding normal AI production selection
 			if (!kPlayer.isHuman(ISHUMAN_AI_CITY_PRODUCTION) && !kPlayer.isMinorCiv())
 			{
-				{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t027", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "SPACESHIP_PRODUCTION_CONTROLLED_SEPARATELY"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SPACESHIP_PRODUCTION_CONTROLLED_SEPARATELY", false);
+				return SR_STRATEGY;
 			}
 
 			static EconomicAIStrategyTypes eStrategySS = (EconomicAIStrategyTypes) GC.getInfoTypeForString("ECONOMICAISTRATEGY_GS_SPACESHIP");
@@ -1118,7 +1110,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			//No if we're small.
 			if (m_pCity->getPopulation() <= 4)
 			{
-				{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t029", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "CITY_POPULATION_TOO_LOW_FOR_TRADE_UNIT"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_POPULATION_TOO_LOW_FOR_TRADE_UNIT", false);
+				return SR_USELESS;
 			}
 			
 			if (pkUnitEntry->GetDomainType() == DOMAIN_LAND)
@@ -1258,20 +1251,30 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	{
 		//Don't build a settler if we're about to grow.
 		if (m_pCity->getFoodTurnsLeft() <= 1)
-			{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t031", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "SETTLER_CITY_GROWTH_IMMINENT"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SETTLER_CITY_GROWTH_IMMINENT", false);
+			return SR_STRATEGY;
+		}
 
 		//this checks war state, grand strategy and more!
 		static EconomicAIStrategyTypes eNoMoreExpand = (EconomicAIStrategyTypes)GC.getInfoTypeForString("ECONOMICAISTRATEGY_ENOUGH_EXPANSION");
 		if (GET_PLAYER(m_pCity->getOwner()).GetEconomicAI()->IsUsingStrategy(eNoMoreExpand))
-			{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t031", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "ECONOMICAISTRATEGY_ENOUGH_EXPANSION"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ECONOMICAISTRATEGY_ENOUGH_EXPANSION", false);
+			return SR_STRATEGY;
+		}
 
 		AICityStrategyTypes eEnoughSettlers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_ENOUGH_SETTLERS");
 		if (m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eEnoughSettlers))
-			{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t031", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "AICITYSTRATEGY_ENOUGH_SETTLERS"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AICITYSTRATEGY_ENOUGH_SETTLERS", false);
+			return SR_BALANCE;
+		}
 
 		if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_SETTLE, m_pCity->getOwner()) > 0)
 		{
-			{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t031", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "SETTLER_ALREADY_IN_CITY"); return traceResult; }
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SETTLER_ALREADY_IN_CITY", false);
+			return SR_USELESS;
 		}
 
 		int iFlavorExpansion = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_EXPANSION"));
@@ -1308,7 +1311,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 
 		//sometimes it's just not right
 		if (iFlavorExpansion <= 0)
-			{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t031", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NONPOSITIVE_ADJUSTED_EXPANSION_FLAVOR"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NONPOSITIVE_ADJUSTED_EXPANSION_FLAVOR", false);
+			return SR_STRATEGY;
+		}
 
 		//if we got this far we want to expand, so let's bump the number of times we've skipped this.
 		iFlavorExpansion += kPlayer.GetMilitaryAI()->GetNumberOfTimesSettlerBuildSkippedOver() * 10;
@@ -1326,7 +1332,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			static EconomicAIStrategyTypes eWantArch = (EconomicAIStrategyTypes) GC.getInfoTypeForString("ECONOMICAISTRATEGY_NEED_ARCHAEOLOGISTS");
 			if(!kPlayer.GetEconomicAI()->IsUsingStrategy(eWantArch))
 			{
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t032", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "ECONOMICAISTRATEGY_NEED_ARCHAEOLOGISTS;INACTIVE"); return traceResult; }
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ECONOMICAISTRATEGY_NEED_ARCHAEOLOGISTS;INACTIVE", false);
+				return SR_BALANCE;
 			}
 			else
 			{
@@ -1371,7 +1378,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	{
 		CvTacticalDominanceZone* pZone = kPlayer.GetTacticalAI()->GetTacticalAnalysisMap()->GetZoneByCity(m_pCity,true);
 		if (pZone && pZone->GetOverallDominanceFlag() != TACTICAL_DOMINANCE_FRIENDLY)
-			{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t033", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "WORKBOAT_ZONE_NOT_FRIENDLY"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKBOAT_ZONE_NOT_FRIENDLY", false);
+			return SR_STRATEGY;
+		}
 
 		CvPlayer& kPlayer = GET_PLAYER(m_pCity->getOwner());
 
@@ -1460,18 +1470,27 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 		}
 		else
-			{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t033", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NO_ELIGIBLE_WORKBOAT_TARGETS"); return traceResult; }
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_ELIGIBLE_WORKBOAT_TARGETS", false);
+				return SR_USELESS;
+			}
 	}
 	//Make sure we need workers in this city.
 	if(pkUnitEntry->GetDefaultUnitAIType() == UNITAI_WORKER)
 	{
 		CvTacticalDominanceZone* pZone = kPlayer.GetTacticalAI()->GetTacticalAnalysisMap()->GetZoneByCity(m_pCity,false);
 		if (pZone && pZone->GetOverallDominanceFlag() != TACTICAL_DOMINANCE_FRIENDLY)
-			{ const int traceResult = SR_STRATEGY; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t034", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "WORKER_ZONE_NOT_FRIENDLY"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKER_ZONE_NOT_FRIENDLY", false);
+			return SR_STRATEGY;
+		}
 
 		//There's a worker waiting here? Abort!
 		if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_WORKER, m_pCity->getOwner()) > 0)
-			{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t034", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "WORKER_ALREADY_IN_CITY"); return traceResult; }
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKER_ALREADY_IN_CITY", false);
+			return SR_USELESS;
+		}
 
 		int iNumBuilders = kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true);
 		int iMissingBuilders = kPlayer.getCitiesNeedingTerrainImprovements() + 1 - iNumBuilders; //one for roads
@@ -1480,7 +1499,8 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		static AICityStrategyTypes eNoWorkers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_ENOUGH_TILE_IMPROVERS");
 		if (eNoWorkers != NO_AICITYSTRATEGY && m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eNoWorkers))
 		{
-			{ const int traceResult = SR_USELESS; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t034", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "AICITYSTRATEGY_ENOUGH_TILE_IMPROVERS"); return traceResult; }
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AICITYSTRATEGY_ENOUGH_TILE_IMPROVERS", false);
+			return SR_USELESS;
 		}
 		static AICityStrategyTypes eWantWorkers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_WANT_TILE_IMPROVERS");
 		if (eWantWorkers != NO_AICITYSTRATEGY && m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eWantWorkers))
@@ -1832,7 +1852,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 124, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughArcher))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_ARCHER"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_ARCHER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_CITY_BOMBARD:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySiege))
@@ -1841,7 +1864,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 125, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSiege))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_SIEGE"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SIEGE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_SKIRMISHER:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySkirmisher))
@@ -1850,7 +1876,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 126, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSkirmisher))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_SKIRMISHER"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SKIRMISHER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_FAST_ATTACK:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyMobile))
@@ -1859,7 +1888,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 127, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughMobile))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_MOBILE"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_MOBILE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_ATTACK_SEA:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyNavalMelee))
@@ -1877,7 +1909,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 129, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughNavalRanged))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_NAVAL_RANGED"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_NAVAL_RANGED", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_SUBMARINE:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySubmarine))
@@ -1886,7 +1921,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 130, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSubmarine))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_SUBMARINE"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SUBMARINE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_ATTACK_AIR:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyBomber))
@@ -1895,7 +1933,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 131, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughBomber))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_BOMBER"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_BOMBER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_DEFENSE_AIR:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyFighter))
@@ -1904,7 +1945,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 132, traceBonus, iBonus);
 			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughFighter))
-				{ const int traceResult = SR_BALANCE; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t042", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "MILITARYAISTRATEGY_ENOUGH_FIGHTER"); return traceResult; }
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_FIGHTER", false);
+					return SR_BALANCE;
+				}
 			break;
 		default:
 			break;
@@ -1916,7 +1960,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	//////
 
 	if (iBonus < 0)
-		{ const int traceResult = SR_UNKNOWN; if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t043", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, "NEGATIVE_SANITY_BONUS"); return traceResult; }
+	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NEGATIVE_SANITY_BONUS", true, iBonus);
+		return SR_UNKNOWN;
+	}
 
 	//iValue modified by iBonus
 	iFlavorWeight += iBonus;
@@ -1928,7 +1975,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_DIV("t043", 134, traceFlavorWeight, iFlavorWeight);
 	}
 
-	{ const int traceResult = max(1,iFlavorWeight); if (AIUnitDecisionTrace::Enabled()) AIUnitDecisionTrace::Event("RETURN", "t043", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iBonus, traceResult, ""); return traceResult; }
+	return max(1,iFlavorWeight);
 }
 
 

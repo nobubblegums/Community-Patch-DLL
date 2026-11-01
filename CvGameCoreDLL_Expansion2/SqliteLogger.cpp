@@ -66,7 +66,7 @@ const char* SqliteLogger::SqlTypeName(Database::ColumnTypes eType)
 //	-----------------------------------------------------------------------------------------------
 bool SqliteLogger::EnsureOpen()
 {
-	if (!MOD_SQLITE_LOGGING)
+	if (!MOD_SQLITE_LOGGING && !MOD_AI_UNIT_DECISION_LOGGING)
 		return false;
 
 	if (m_bOpen)
@@ -224,8 +224,10 @@ void SqliteLogger::CreateTable(const std::string& strTableName, const TableDef& 
 }
 
 //	-----------------------------------------------------------------------------------------------
-void SqliteLogger::RegisterTable(const std::string& strTableName, const TableDef& kColumns)
+void SqliteLogger::RegisterTable(const std::string& strTableName, const TableDef& kColumns, bool bTask2U)
 {
+	if (bTask2U ? !MOD_AI_UNIT_DECISION_LOGGING : !MOD_SQLITE_LOGGING) return;
+	if (bTask2U) m_task2UTables.insert(strTableName);
 	if (!EnsureOpen())
 		return;
 
@@ -320,7 +322,7 @@ Database::Results* SqliteLogger::GetOrCreateInsert(const std::string& strTableNa
 //	-----------------------------------------------------------------------------------------------
 SqliteLogger::Statement SqliteLogger::BeginLogRow(const std::string& strTableName)
 {
-	if (!EnsureOpen())
+	if ((m_task2UTables.count(strTableName) ? !MOD_AI_UNIT_DECISION_LOGGING : !MOD_SQLITE_LOGGING) || !EnsureOpen())
 		return Statement(this, strTableName, NULL, NULL, false);
 
 	SchemaMap::iterator itSchema = m_registeredTableSchemas.find(strTableName);
@@ -348,7 +350,7 @@ SqliteLogger::Statement SqliteLogger::BeginLogRow(const std::string& strTableNam
 //	-----------------------------------------------------------------------------------------------
 SqliteLogger::BatchWriter SqliteLogger::BeginLogBatch(const std::string& strTableName)
 {
-	if (!EnsureOpen())
+	if ((m_task2UTables.count(strTableName) ? !MOD_AI_UNIT_DECISION_LOGGING : !MOD_SQLITE_LOGGING) || !EnsureOpen())
 		return BatchWriter(this, strTableName, NULL, NULL, 0, 0, 0, false);
 
 	SchemaMap::iterator itSchema = m_registeredTableSchemas.find(strTableName);
