@@ -17,7 +17,8 @@ namespace AIUnitDecisionTrace {
  void ResetFlavorObservation();
  bool PlayerEnabled(int);
  void PlayerFlavorState(int,const char*,const char*,int);
- int CityFlavorState(const CvCity*,const char*,const char*,int);
+ int CacheFlavorState(const CvCity*);
+ void CityFlavorState(const CvCity*,const char*,const char*,int);
  void Reject(const char*,bool,int = 0);
  void Recommendation(int,int,int,int,int);
  void ConsumeFlavorState(int);
@@ -37,10 +38,6 @@ namespace AIUnitDecisionTrace {
 } while (0)
 #define AI_UNIT_TRACE_ASSIGN(contract, site, tracker, target) do { \
  AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "=", tracker, target, target); \
- tracker = target; \
-} while (0)
-#define AI_UNIT_TRACE_ROOT(contract, site, tracker, target) do { \
- AIUnitDecisionTrace::Arithmetic(contract, m_pCity->getOwner(), m_pCity->GetID(), eUnit, site, #target, "=", tracker, 10, target); \
  tracker = target; \
 } while (0)
 #define AI_UNIT_TRACE_DIV(contract, site, tracker, target) do { \

@@ -3206,7 +3206,7 @@ void CvEconomicAI::DoHurry()
 		CvCity* pSelectedCity = m_pPlayer->getCity(selection.m_iCityID);
 		if (pSelectedCity == NULL)
 			continue;
-		if (AIUnitDecisionTrace::Configured()) AIUnitDecisionTrace::ProductionEvent(pSelectedCity, "HURRY_PLAYER_CANDIDATE_CONSIDERED", selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? ORDER_CONSTRUCT : ORDER_TRAIN, selection.m_iIndex, selection.m_iDiagnosticDecisionID, "GOLD", "EVALUATED");
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::ProductionEvent(pSelectedCity, "HURRY_PLAYER_CANDIDATE_CONSIDERED", selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? ORDER_CONSTRUCT : ORDER_TRAIN, selection.m_iIndex, selection.m_iDiagnosticDecisionID, "GOLD", "EVALUATED");
 
 		//Units
 		switch (selection.m_eBuildableType)
@@ -3236,7 +3236,7 @@ void CvEconomicAI::DoHurry()
 						AIUnitDecisionTrace::Action traceAction(pSelectedCity, selection.m_iDiagnosticDecisionID, ORDER_TRAIN, eUnitType, "UNIT_INVESTMENT", "GOLD");
 						pSelectedCity->SetUnitInvestment(eUnitClass, true);
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
-						if (AIUnitDecisionTrace::Configured() && pSelectedCity->IsUnitInvestment(eUnitClass)) traceAction.Success();
+						if (MOD_AI_UNIT_DECISION_LOGGING && pSelectedCity->IsUnitInvestment(eUnitClass)) traceAction.Success();
 						if (GC.getLogging() && GC.getAILogging())
 						{
 							CvString strLogString;
@@ -3346,12 +3346,12 @@ void CvEconomicAI::DoHurry()
 						{
 							const BuildingClassTypes eBuildingClass = pkBuildingInfo->GetBuildingClassType();
 							pSelectedCity->SetBuildingInvestment(eBuildingClass, true);
-							if (AIUnitDecisionTrace::Configured() && pSelectedCity->IsBuildingInvestment(eBuildingClass)) traceAction.Success();
+							if (MOD_AI_UNIT_DECISION_LOGGING && pSelectedCity->IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 						}
 						else
 						{
 							const bool traceCreated = pSelectedCity->CreateBuilding(eBuildingType);
-							if (AIUnitDecisionTrace::Configured() && traceCreated) traceAction.Success();
+							if (MOD_AI_UNIT_DECISION_LOGGING && traceCreated) traceAction.Success();
 							pSelectedCity->SetBuildingPurchaseCooldown(pkBuildingInfo->GetCooldown());
 							if (MOD_EVENTS_CITY)
 							{

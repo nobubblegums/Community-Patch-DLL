@@ -15667,7 +15667,7 @@ void CvCity::CheckForOperationUnits()
 							if (eUnitClass != NO_UNITCLASS)
 							{
 								SetUnitInvestment(eUnitClass, true);
-								if (AIUnitDecisionTrace::Configured() && IsUnitInvestment(eUnitClass)) traceAction.Success();
+								if (MOD_AI_UNIT_DECISION_LOGGING && IsUnitInvestment(eUnitClass)) traceAction.Success();
 								if (CityStrategyAIHelpers::IsTestCityStrategy_IsPuppetAndAnnexable(this))
 								{
 									if (getProductionProcess() != NO_PROCESS)
@@ -15819,7 +15819,7 @@ void CvCity::CheckForOperationUnits()
 						if (eUnitClass != NO_UNITCLASS)
 						{
 							SetUnitInvestment(eUnitClass, true);
-							if (AIUnitDecisionTrace::Configured() && IsUnitInvestment(eUnitClass)) traceAction.Success();
+							if (MOD_AI_UNIT_DECISION_LOGGING && IsUnitInvestment(eUnitClass)) traceAction.Success();
 							if (CityStrategyAIHelpers::IsTestCityStrategy_IsPuppetAndAnnexable(this))
 							{
 								if (getProductionProcess() != NO_PROCESS)
@@ -19603,7 +19603,7 @@ void CvCity::DoAnnex(bool bRaze)
 				{
 					AIUnitDecisionTrace::Action traceAction(this, 0, ORDER_CONSTRUCT, eBuilding, "BUILDING_INVESTMENT", "NONE");
 					SetBuildingInvestment(eBuildingClass, true);
-					if (AIUnitDecisionTrace::Configured() && IsBuildingInvestment(eBuildingClass)) traceAction.Success();
+					if (MOD_AI_UNIT_DECISION_LOGGING && IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 				}
 			}
 		}
@@ -29327,7 +29327,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 	OrderData order;
 	bool bValid = false;
 	int tracePreviousOrder = -1, tracePreviousObject = -1;
-	if (AIUnitDecisionTrace::Configured() && traceDecisionID) {
+	if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) {
 		const OrderData* traceHead = headOrderQueueNode();
 		if (traceHead) { tracePreviousOrder = traceHead->eOrderType; tracePreviousObject = traceHead->iData1; }
 	}
@@ -29394,7 +29394,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	if (!bValid)
 	{
-		if (AIUnitDecisionTrace::Configured() && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_ORDER_REJECTED", eOrder, iData1, traceDecisionID, "NONE", "REJECTED");
+		if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_ORDER_REJECTED", eOrder, iData1, traceDecisionID, "NONE", "REJECTED");
 		return;
 	}
 
@@ -29455,7 +29455,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	CvInterfacePtr<ICvCity1> pCity = GC.WrapCityPointer(this);
 	DLLUI->SetSpecificCityInfoDirty(pCity.get(), CITY_UPDATE_TYPE_PRODUCTION);
-	if (AIUnitDecisionTrace::Configured() && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, tracePreviousOrder<0 ? "PRODUCTION_ORDER_STARTED" : tracePreviousOrder==eOrder && tracePreviousObject==iData1 ? "PRODUCTION_ORDER_RESELECTED" : "PRODUCTION_ORDER_REPLACED", eOrder, iData1, traceDecisionID);
+	if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, tracePreviousOrder<0 ? "PRODUCTION_ORDER_STARTED" : tracePreviousOrder==eOrder && tracePreviousObject==iData1 ? "PRODUCTION_ORDER_RESELECTED" : "PRODUCTION_ORDER_REPLACED", eOrder, iData1, traceDecisionID);
 }
 
 
@@ -29884,7 +29884,7 @@ void CvCity::produce(UnitTypes eTrainUnit, UnitAITypes eTrainAIUnit, bool bCanOv
 			}
 		}
 		SetUnitInvestment(pUnit->getUnitClassType(), false);
-		if (AIUnitDecisionTrace::Configured()) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_TRAIN, eTrainUnit, 0);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_TRAIN, eTrainUnit, 0);
 
 		if (kOwner.GetPlayerTraits()->IsConquestOfTheWorld())
 		{
@@ -30015,7 +30015,7 @@ void CvCity::produce(BuildingTypes eConstructBuilding, bool bCanOverflow)
 
 	int iProductionNeeded = getProductionNeeded(eConstructBuilding) * 100;
 	bool bResult = CreateBuilding(eConstructBuilding);
-	if (AIUnitDecisionTrace::Configured() && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CONSTRUCT, eConstructBuilding, 0);
+	if (MOD_AI_UNIT_DECISION_LOGGING && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CONSTRUCT, eConstructBuilding, 0);
 	DEBUG_VARIABLE(bResult);
 	ASSERT(bResult, "CreateBuilding failed");
 
@@ -30086,7 +30086,7 @@ void CvCity::produce(ProjectTypes eCreateProject, bool bCanOverflow)
 	CvPlayerAI& kOwner = GET_PLAYER(getOwner());
 
 	bool bResult = CreateProject(eCreateProject);
-	if (AIUnitDecisionTrace::Configured() && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CREATE, eCreateProject, 0);
+	if (MOD_AI_UNIT_DECISION_LOGGING && bResult) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_COMPLETED", ORDER_CREATE, eCreateProject, 0);
 	DEBUG_VARIABLE(bResult);
 	ASSERT(bResult, "Failed to create project");
 
@@ -31271,7 +31271,7 @@ CvUnit* CvCity::PurchaseUnit(UnitTypes eUnitType, YieldTypes ePurchaseYield, int
 		return NULL;
 	}
 
-	if (AIUnitDecisionTrace::Configured() && (pNewUnit || (bInvest && pGameUnit->GetUnitClassType()!=NO_UNITCLASS && IsUnitInvestment((UnitClassTypes)pGameUnit->GetUnitClassType())))) traceAction.Success(bInvest ? "UNIT_INVESTMENT" : "UNIT_PURCHASE");
+	if (MOD_AI_UNIT_DECISION_LOGGING && (pNewUnit || (bInvest && pGameUnit->GetUnitClassType()!=NO_UNITCLASS && IsUnitInvestment((UnitClassTypes)pGameUnit->GetUnitClassType())))) traceAction.Success(bInvest ? "UNIT_INVESTMENT" : "UNIT_PURCHASE");
 
 	if (!bInvest)
 	{
@@ -31467,7 +31467,7 @@ bool CvCity::PurchaseBuilding(BuildingTypes eBuildingType, YieldTypes ePurchaseY
 		return false;
 	}
 
-	if (AIUnitDecisionTrace::Configured()) {
+	if (MOD_AI_UNIT_DECISION_LOGGING) {
 		const bool traceInvest = ePurchaseYield==YIELD_GOLD && MOD_BALANCE_BUILDING_INVESTMENTS;
 		if (!traceInvest || (pGameBuilding->GetBuildingClassType()!=NO_BUILDINGCLASS && IsBuildingInvestment(pGameBuilding->GetBuildingClassType()))) traceAction.Success(traceInvest ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE");
 	}

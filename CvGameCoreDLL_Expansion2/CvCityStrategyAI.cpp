@@ -372,7 +372,7 @@ void CvCityStrategyAI::FlavorUpdate()
 		m_pProjectProductionAI->AddFlavorWeights((FlavorTypes)iFlavor, iFlavorValue);
 		m_pProcessProductionAI->AddFlavorWeights((FlavorTypes)iFlavor, iFlavorValue);
 	}
-	if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceFlavorUpdateComplete(AIUnitDecisionTrace::CityFlavorState(m_pCity, "CACHE_REBUILD", "", 0));
+	if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceFlavorUpdateComplete(AIUnitDecisionTrace::CacheFlavorState(m_pCity));
 }
 
 FDataStream& operator>>(FDataStream& stream, CvCityStrategyAI& cityStrategyAI)

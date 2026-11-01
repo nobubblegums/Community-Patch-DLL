@@ -211,12 +211,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	if(iFlavorWeight < 1)
 		return SR_IMPOSSIBLE;
 
-	int traceFlavorWeight = 0;
-	if (MOD_AI_UNIT_DECISION_LOGGING) traceFlavorWeight = iFlavorWeight;
-
 	//this seems to work well to bring the raw flavor weight into a sensible range [0 ... 200]
 	iFlavorWeight = sqrti(10 * iFlavorWeight);
-	if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ROOT("t005", 1, traceFlavorWeight, iFlavorWeight);
+	int traceFlavorWeight = 0;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceFlavorWeight = iFlavorWeight;
 
 	CvUnitEntry* pkUnitEntry = GC.getUnitInfo(eUnit);
 	if (!pkUnitEntry)

@@ -11,7 +11,6 @@
 #include "CvCityStrategyAI.h"
 #include "CvCitySpecializationAI.h"
 
-#include <set>
 #include <vector>
 #include <map>
 #include <string.h>
@@ -60,7 +59,7 @@ namespace AIUnitDecisionTrace {
 		SqliteLogger::BatchWriter* termBatch=NULL;
 		std::vector<Key> postPool;
 		const char* termNames[]={
-			"","FLAVOR_CACHE","CACHED_WEIGHT","ROLE_RECOMMENDATION","RECOMMEND_DURATION","BASE_COMPRESSION","PURCHASE_AND_CITY","CITY_MATURITY","MAINTENANCE","PLACEMENT","COUNTS","FORCE_LIMIT","MINOR_FORCE","LANDMASS","RESOURCE_REQUIRED","RESOURCE_SURPLUS","SPECIAL_ROLE","CITY_SUPPORT","SUICIDE_NUKE","PURCHASE_SURPLUS","EXPLORATION_CARRIER","NAVAL_DEFICIT","LAND_FORCE_DEFICIT","AIR_BALANCE","ANTI_AIR","CONQUEST","DIPLOMAT","SPACESHIP","RELIGION","TRADE","TRAIT","SETTLER","ARCHAEOLOGIST","WORKBOAT","WORKER","WAR_PRESSURE","BEST_CITY","PROMOTION","OPERATION_ROLE","DOMAIN_COUNTS","CONTINUATION","COMPLETION_FREE","ROLE_BALANCE","FINAL"
+			"","FLAVOR_CACHE","CACHED_WEIGHT","ROLE_RECOMMENDATION","RECOMMEND_DURATION","","PURCHASE_AND_CITY","CITY_MATURITY","MAINTENANCE","PLACEMENT","COUNTS","FORCE_LIMIT","MINOR_FORCE","LANDMASS","RESOURCE_REQUIRED","RESOURCE_SURPLUS","SPECIAL_ROLE","CITY_SUPPORT","SUICIDE_NUKE","PURCHASE_SURPLUS","EXPLORATION_CARRIER","NAVAL_DEFICIT","LAND_FORCE_DEFICIT","AIR_BALANCE","ANTI_AIR","CONQUEST","DIPLOMAT","SPACESHIP","RELIGION","TRADE","TRAIT","SETTLER","ARCHAEOLOGIST","WORKBOAT","WORKER","WAR_PRESSURE","BEST_CITY","PROMOTION","OPERATION_ROLE","DOMAIN_COUNTS","CONTINUATION","COMPLETION_FREE","ROLE_BALANCE","FINAL"
 		};
 		const char* Name(const char* contract) {
 			int i=contract && contract[0]=='t'?atoi(contract+1):0;
@@ -126,7 +125,7 @@ namespace AIUnitDecisionTrace {
 			if (!strcmp(target,"iBonus")) { variable=target; semanticTarget="SANITY_BONUS"; }
 			else if (!strcmp(target,"iFlavorWeight")) {
 				variable=target;
-				semanticTarget=!strcmp(id,"t005") ? "SANITY_BASE" : "SANITY_SCORE";
+				semanticTarget="SANITY_SCORE";
 			}
 			else if (!strcmp(target,"sanity")) semanticTarget="SANITY_SCORE";
 			else if (!strcmp(target,"recommendation")) semanticTarget="RECOMMENDATION_WEIGHT";
@@ -134,9 +133,7 @@ namespace AIUnitDecisionTrace {
 			else if (!strcmp(target,"selection")) semanticTarget="SELECTION";
 			if (!strcmp(op,"DURATION") && !strcmp(target,"competition")) variable="iTurns";
 			const char* step=Name(id);
-			if (!strcmp(op,"CUTOFF")) step="SELECTION_CUTOFF";
-			else if (!strcmp(op,"DRAW")) step=id;
-			else if (!strcmp(op,"SELECTED")) step="CANDIDATE_SELECTED";
+			if (!strcmp(op,"DRAW")) step=id;
 			else if (!strcmp(op,"RECOMMENDED")) step="ROLE_RECOMMENDED";
 			else if (!id[0] && !strcmp(op,"DURATION")) step="DURATION_REWEIGHTING";
 			else if (!id[0]) step=event;
@@ -159,15 +156,16 @@ namespace AIUnitDecisionTrace {
 		return !majorsOnly || GET_PLAYER((PlayerTypes)p).isMajorCiv();
 	}
 	namespace {
-		std::set<int> observedPlayers;
-		std::set<std::pair<int,int> > observedCities;
+		// Latest logged sparse state, independent of when native caches rebuild.
+		std::map<int,int> observedPlayers;
+		std::map<Key,int> observedCities;
 		void PlayerStateRow(int p,const char* event,const char* subject,int value) {
-			GET_SQLITE_LOGGER().BeginLogRow("AIPlayerFlavorState").bind(++nextFlavorState).bind(p).bind(event).bind(subject).bind(value).execute();
+			observedPlayers[p]=++nextFlavorState;
+			GET_SQLITE_LOGGER().BeginLogRow("AIPlayerFlavorState").bind(observedPlayers[p]).bind(p).bind(event).bind(subject).bind(value).execute();
 		}
-		int CityStateRow(const CvCity* c,const char* event,const char* subject,int value) {
-			const int state=++nextFlavorState;
+		void CityStateRow(const CvCity* c,const char* event,const char* subject,int value) {
+			const int state=observedCities[Key(c->getOwner(),c->GetID())]=++nextFlavorState;
 			GET_SQLITE_LOGGER().BeginLogRow("AICityFlavorState").bind(state).bind(c->getOwner()).bind(c->GetID()).bind(event).bind(subject).bind(value).execute();
-			return state;
 		}
 		bool FlavorReady(int p) {
 			if (!PlayerEnabled(p) || !flavors || GC.getGame().getGameDatabaseId()<=0 || !GET_SQLITE_LOGGER().IsEnabled()) return false;
@@ -175,7 +173,7 @@ namespace AIUnitDecisionTrace {
 			return true;
 		}
 		void ObservePlayer(int p) {
-			if (!observedPlayers.insert(p).second) return;
+			if (!observedPlayers.insert(std::make_pair(p,-1)).second) return;
 			CvPlayer& owner=GET_PLAYER((PlayerTypes)p);
 			PlayerStateRow(p,"OBSERVED","",0);
 			for (int f=0; f<GC.getNumFlavorTypes(); ++f)
@@ -190,6 +188,16 @@ namespace AIUnitDecisionTrace {
 			const AIGrandStrategyTypes active=grand->GetActiveGrandStrategy();
 			PlayerStateRow(p,"GRAND_STRATEGY",active==NO_AIGRANDSTRATEGY ? "NONE" : grand->GetAIGrandStrategies()->GetEntry(active)->GetType(),1);
 		}
+		void ObserveCity(const CvCity* c) {
+			if (observedCities.insert(std::make_pair(Key(c->getOwner(),c->GetID()),-1)).second) {
+				CvCityStrategyAI* strategy=c->GetCityStrategyAI();
+				CityStateRow(c,"OBSERVED","",0);
+				for (int i=0; i<strategy->GetAICityStrategies()->GetNumAICityStrategies(); ++i)
+					if (strategy->IsUsingCityStrategy((AICityStrategyTypes)i)) CityStateRow(c,"CITY_STRATEGY",strategy->GetAICityStrategies()->GetEntry(i)->GetType(),1);
+				const CitySpecializationTypes specialization=strategy->GetSpecialization();
+				CityStateRow(c,"SPECIALIZATION",specialization==NO_CITY_SPECIALIZATION ? "NONE" : GC.getCitySpecializationInfo(specialization)->GetType(),1);
+			}
+		}
 	}
 	// Load restores native caches independently: their IDs remain -1 until a real rebuild.
 	void ResetFlavorObservation() {
@@ -201,19 +209,20 @@ namespace AIUnitDecisionTrace {
 		ObservePlayer(p);
 		PlayerStateRow(p,event,subject,value);
 	}
-	int CityFlavorState(const CvCity* c,const char* event,const char* subject,int value) {
+	void CityFlavorState(const CvCity* c,const char* event,const char* subject,int value) {
+		if (!c || !FlavorReady(c->getOwner())) return;
+		ObservePlayer(c->getOwner());
+		ObserveCity(c);
+		CityStateRow(c,event,subject,value);
+	}
+	int CacheFlavorState(const CvCity* c) {
 		if (!c || !FlavorReady(c->getOwner())) return -1;
 		ObservePlayer(c->getOwner());
-		if (observedCities.insert(std::make_pair((int)c->getOwner(),c->GetID())).second) {
-			CvCityStrategyAI* strategy=c->GetCityStrategyAI();
-			CityStateRow(c,"OBSERVED","",0);
-			for (int i=0; i<strategy->GetAICityStrategies()->GetNumAICityStrategies(); ++i)
-				if (strategy->IsUsingCityStrategy((AICityStrategyTypes)i)) CityStateRow(c,"CITY_STRATEGY",strategy->GetAICityStrategies()->GetEntry(i)->GetType(),1);
-			const CitySpecializationTypes specialization=strategy->GetSpecialization();
-			CityStateRow(c,"SPECIALIZATION",specialization==NO_CITY_SPECIALIZATION ? "NONE" : GC.getCitySpecializationInfo(specialization)->GetType(),1);
-		}
-		return CityStateRow(c,event,subject,value);
+		ObserveCity(c);
+		// Freeze the relevant sparse-state cutoff only at actual rebuild completion.
+		return max(observedPlayers[c->getOwner()],observedCities[Key(c->getOwner(),c->GetID())]);
 	}
+
 	int CurrentDecision() { return Enabled() ? decision : 0; }
 	void DecisionContext(const char* trigger) { if (Enabled()) decisionTrigger=trigger; }
 	void DecisionAction(const char* action) { if (Enabled()) selectedAction=action; }
@@ -353,15 +362,14 @@ namespace AIUnitDecisionTrace {
 		if(!Enabled() || recommendation || !terms)return;
 		object=unit;
 		if(strcmp(target,"iBonus") && strcmp(target,"iFlavorWeight"))return;
-		const bool root=strcmp(id,"t005")==0 && strcmp(target,"iFlavorWeight")==0;
-		if (!root && before==after) return;
+		if (before==after) return;
 		const char* operation = !strcmp(op,"+=")?"ADD":!strcmp(op,"-=")?"SUBTRACT":!strcmp(op,"*=")?"MULTIPLY":!strcmp(op,"/=")?"DIVIDE":"ASSIGN";
 		const char* strategy="";
 		if (!strcmp(id,"t042") && site>=124 && site<=132) {
 			const char* names[]={"MILITARYAISTRATEGY_NEED_ARCHER","MILITARYAISTRATEGY_NEED_SIEGE","MILITARYAISTRATEGY_NEED_SKIRMISHER","MILITARYAISTRATEGY_NEED_MOBILE","MILITARYAISTRATEGY_NEED_NAVAL_MELEE","MILITARYAISTRATEGY_NEED_NAVAL_RANGED","MILITARYAISTRATEGY_NEED_SUBMARINE","MILITARYAISTRATEGY_NEED_BOMBER","MILITARYAISTRATEGY_NEED_FIGHTER"};
 			strategy=names[site-124];
 		}
-		Term(id,target,root?"ROOT":operation,before,root?10:operand,after,site,"APPLIED",strategy);
+		Term(id,target,operation,before,operand,after,site,"APPLIED",strategy);
 	}
 	void ConsumeFlavorState(int state) {
 		if (!Enabled() || recommendation || state<0) return;
@@ -425,7 +433,6 @@ namespace AIUnitDecisionTrace {
 			c.selected=1;
 			winnerKindName=KindName(k);
 			winnerObjectType=Symbol(k,obj);
-			Term(id,"selection","SELECTED",0,0,0,0,"SELECTED",strcmp(event,"HURRY_SELECTED")==0 ? (after ? "FAITH" : "GOLD") : "");
 		}  if(strstr(event,"CONTINUED") || strstr(event,"OVERRIDE"))selectionMode=event;
 		if(strstr(event,"OVERRIDE") || strstr(event,"CONTINUED"))Term(event,"competition","ASSIGN",0,0,0,0,event,"");
 	}
@@ -434,8 +441,7 @@ namespace AIUnitDecisionTrace {
 		selectionMode="WEIGHTED";
 		if(strcmp(event,"POOL")==0 && a>=0 && a<(int)postPool.size())candidates[postPool[a]].eligible=b>=c?1:0;
 		if(strcmp(event,"MODE_NO_CUTOFF")==0 || strcmp(event,"MODE_UNIFORM")==0)for(size_t i=0;i<postPool.size();++i)candidates[postPool[i]].eligible=1;
-		if(strcmp(event,"CUTOFF")==0) Term("","selection","CUTOFF",b,a,c,0,"APPLIED","highest_weight;percent;cutoff_weight");
-		else if(strcmp(event,"WEIGHTED_DRAW")==0 || strcmp(event,"UNIFORM_DRAW")==0) {
+		if(strcmp(event,"WEIGHTED_DRAW")==0 || strcmp(event,"UNIFORM_DRAW")==0) {
 			CvString detail; detail.Format("%s; draw=%d; %s=%d",event,a,strcmp(event,"UNIFORM_DRAW")==0 ? "pool_size" : "total_weight",b);
 			Term(strcmp(event,"UNIFORM_DRAW")==0 ? "UNIFORM_SELECTION_DRAW" : "WEIGHTED_SELECTION_DRAW","selection","DRAW",0,0,0,0,"APPLIED",detail.c_str());
 		}
