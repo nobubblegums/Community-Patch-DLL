@@ -56,7 +56,16 @@ namespace AIUnitDecisionTrace {
 		typedef std::pair<int,int> Key;
 		std::map<Key,Candidate> candidates;
 		CvString selectionMode;
+		// One BatchWriter per telemetry table for the current GameId/Turn. BatchWriter still
+		// auto-flushes at SQLITE_LOGGING_BATCHED_BUFFER_ROWS_MAX, bounding memory usage.
+		int batchGameId=-1, batchTurn=-1;
 		SqliteLogger::BatchWriter* termBatch=NULL;
+		SqliteLogger::BatchWriter* candidateBatch=NULL;
+		SqliteLogger::BatchWriter* decisionBatch=NULL;
+		SqliteLogger::BatchWriter* playerFlavorBatch=NULL;
+		SqliteLogger::BatchWriter* cityFlavorBatch=NULL;
+		SqliteLogger::BatchWriter* eventBatch=NULL;
+		SqliteLogger::BatchWriter* filterBatch=NULL;
 		std::vector<Key> postPool;
 		const char* termNames[]={
 			"","FLAVOR_CACHE","CACHED_WEIGHT","ROLE_RECOMMENDATION","RECOMMEND_DURATION","","PURCHASE_AND_CITY","CITY_MATURITY","MAINTENANCE","PLACEMENT","COUNTS","FORCE_LIMIT","MINOR_FORCE","LANDMASS","RESOURCE_REQUIRED","RESOURCE_SURPLUS","SPECIAL_ROLE","CITY_SUPPORT","SUICIDE_NUKE","PURCHASE_SURPLUS","EXPLORATION_CARRIER","NAVAL_DEFICIT","LAND_FORCE_DEFICIT","AIR_BALANCE","ANTI_AIR","CONQUEST","DIPLOMAT","SPACESHIP","RELIGION","TRADE","TRAIT","SETTLER","ARCHAEOLOGIST","WORKBOAT","WORKER","WAR_PRESSURE","BEST_CITY","PROMOTION","OPERATION_ROLE","DOMAIN_COUNTS","CONTINUATION","COMPLETION_FREE","ROLE_BALANCE","FINAL"
@@ -117,6 +126,36 @@ namespace AIUnitDecisionTrace {
 			Register("AIProductionEvent",e,9);
 			registered=true;
 		}
+		void FlushBatch(SqliteLogger::BatchWriter*& batch) {
+			if (!batch) return;
+			batch->flush();
+			delete batch;
+			batch=NULL;
+		}
+		void FlushTurnBatches() {
+			FlushBatch(termBatch);
+			FlushBatch(candidateBatch);
+			FlushBatch(decisionBatch);
+			FlushBatch(playerFlavorBatch);
+			FlushBatch(cityFlavorBatch);
+			FlushBatch(eventBatch);
+			FlushBatch(filterBatch);
+			batchGameId=-1;
+			batchTurn=-1;
+		}
+		SqliteLogger::BatchWriter* TurnBatch(SqliteLogger::BatchWriter*& batch,const char* table) {
+			Ensure();
+			const int gameId=GC.getGame().getGameDatabaseId();
+			const int turn=GC.getGame().getElapsedGameTurns();
+			if (batchGameId!=gameId || batchTurn!=turn) {
+				// Never let a BatchWriter cross the GameId/Turn metadata captured at creation.
+				FlushTurnBatches();
+				batchGameId=gameId;
+				batchTurn=turn;
+			}
+			if (!batch) batch=new SqliteLogger::BatchWriter(GET_SQLITE_LOGGER().BeginLogBatch(table));
+			return batch;
+		}
 		void WriteTerm(const char* id,const char* target,const char* op,int before,int operand,int after,int /*site*/,const char* event,const char* reason,int parentObject=-1) {
 			if(!Enabled())return;
 			Ensure();
@@ -137,7 +176,7 @@ namespace AIUnitDecisionTrace {
 			else if (!strcmp(op,"RECOMMENDED")) step="ROLE_RECOMMENDED";
 			else if (!id[0] && !strcmp(op,"DURATION")) step="DURATION_REWEIGHTING";
 			else if (!id[0]) step=event;
-			termBatch->BeginLogRow().bind(decision).bind(ordinal).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(recommendation ? "ROLE_RECOMMENDATION" : KindName(kind)).bind(Symbol(kind,object).c_str()).bind(before).bind(operand).bind(after).bind(step).bind(semanticTarget).bind(variable).bind(op).bind(reason).bind(parentObject>=0 ? Symbol(CITY_BUILDABLE_PROCESS,parentObject).c_str() : "").addRowToBatch();
+			TurnBatch(termBatch,"AIProductionTerm")->BeginLogRow().bind(decision).bind(ordinal).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(recommendation ? "ROLE_RECOMMENDATION" : KindName(kind)).bind(Symbol(kind,object).c_str()).bind(before).bind(operand).bind(after).bind(step).bind(semanticTarget).bind(variable).bind(op).bind(reason).bind(parentObject>=0 ? Symbol(CITY_BUILDABLE_PROCESS,parentObject).c_str() : "").addRowToBatch();
 		}
 		void Term(const char* id,const char* target,const char* op,int before,int operand,int after,int site,const char* event,const char* reason) {
 			if (!Enabled() || !terms) return;
@@ -163,11 +202,11 @@ namespace AIUnitDecisionTrace {
 			const int state=++nextFlavorState;
 			// Grand Strategy is read directly by scoring, not by the city flavor cache.
 			if (strcmp(event,"GRAND_STRATEGY")) observedPlayers[p]=state;
-			GET_SQLITE_LOGGER().BeginLogRow("AIPlayerFlavorState").bind(state).bind(p).bind(event).bind(subject).bind(value).execute();
+			TurnBatch(playerFlavorBatch,"AIPlayerFlavorState")->BeginLogRow().bind(state).bind(p).bind(event).bind(subject).bind(value).addRowToBatch();
 		}
 		void CityStateRow(const CvCity* c,const char* event,const char* subject,int value) {
 			const int state=observedCities[Key(c->getOwner(),c->GetID())]=++nextFlavorState;
-			GET_SQLITE_LOGGER().BeginLogRow("AICityFlavorState").bind(state).bind(c->getOwner()).bind(c->GetID()).bind(event).bind(subject).bind(value).execute();
+			TurnBatch(cityFlavorBatch,"AICityFlavorState")->BeginLogRow().bind(state).bind(c->getOwner()).bind(c->GetID()).bind(event).bind(subject).bind(value).addRowToBatch();
 		}
 		bool FlavorReady(int p) {
 			if (!PlayerEnabled(p) || !flavors || GC.getGame().getGameDatabaseId()<=0 || !GET_SQLITE_LOGGER().IsEnabled()) return false;
@@ -203,6 +242,9 @@ namespace AIUnitDecisionTrace {
 	}
 	// Load restores native caches independently: their IDs remain -1 until a real rebuild.
 	void ResetFlavorObservation() {
+		// resolveGameDatabaseId() calls this before replacing the GameId, so preserve the
+		// pending tail from the previous game/load before invalidating sparse flavor state.
+		FlushTurnBatches();
 		observedPlayers.clear(); observedCities.clear();
 	}
 	void PlayerFlavorState(int p,const char* event,const char* subject,int value) {
@@ -259,7 +301,7 @@ namespace AIUnitDecisionTrace {
 		Ensure();
 		const int k=OrderKind(order);
 		if (Enabled() && origin==decision && player==c->getOwner() && city==c->GetID()) observedAction=true;
-		GET_SQLITE_LOGGER().BeginLogRow("AIProductionEvent").bind(++nextObservation).bind(origin).bind(PlayerName(c->getOwner()).c_str()).bind(c->getName().c_str()).bind(type).bind(KindName(k)).bind(Symbol(k,obj).c_str()).bind(currency).bind(result).execute();
+		TurnBatch(eventBatch,"AIProductionEvent")->BeginLogRow().bind(++nextObservation).bind(origin).bind(PlayerName(c->getOwner()).c_str()).bind(c->getName().c_str()).bind(type).bind(KindName(k)).bind(Symbol(k,obj).c_str()).bind(currency).bind(result).addRowToBatch();
 	}
 	Action::Action():m_city(NULL),m_decision(0),m_kind(-1),m_object(-1),m_type(NULL),m_currency(NULL),m_success(false),m_enabled(false) {}
 	void Action::Begin(const CvCity* c,int order,int obj,int yield,bool investment,int origin) {
@@ -301,14 +343,12 @@ namespace AIUnitDecisionTrace {
 
 		if(!GET_SQLITE_LOGGER().IsEnabled())return;
 
-		if(!inDecision && termBatch==NULL && (strcmp(caller,"ChooseProduction")==0 || strcmp(caller,"ChooseHurry")==0)) {
+		if(!inDecision && (strcmp(caller,"ChooseProduction")==0 || strcmp(caller,"ChooseHurry")==0)) {
 			m_root=true;
 			inDecision=true;
 
 			Ensure();
 			if (FlavorReady(p)) ObservePlayer(p);
-
-			termBatch=new SqliteLogger::BatchWriter(GET_SQLITE_LOGGER().BeginLogBatch("AIProductionTerm"));
 
 			decision=++nextDecision;
 			decisionType=caller;
@@ -353,22 +393,17 @@ namespace AIUnitDecisionTrace {
 				++it;
 			}
 			kind=savedKind; object=savedObject; ordinal=savedOrdinal; player=savedPlayer; city=savedCity;
-			termBatch->flush();
-			delete termBatch;
-			termBatch=NULL;
 			if (!candidates.empty() || ordinal>0 || consumedFlavor || observedAction || selectedAction!="NONE") {
-				SqliteLogger::BatchWriter kCandidateBatch = GET_SQLITE_LOGGER().BeginLogBatch("AIProductionCandidate");
+				SqliteLogger::BatchWriter* kCandidateBatch=TurnBatch(candidateBatch,"AIProductionCandidate");
 				for(std::map<Key,Candidate>::const_iterator it=candidates.begin();it!=candidates.end();++it){
 					const Candidate& c=it->second;
 					CvString symbol=Symbol(c.kind,c.object);
 					CvString playerName=PlayerName(c.player), cityName=CityName(c.player,c.city);
-					kCandidateBatch.BeginLogRow().bind(decision).bind(playerName.c_str()).bind(cityName.c_str()).bind(KindName(c.kind)).bind(symbol.c_str()).bind(c.base).bind(c.sanity).bind(c.finalWeight).bind(c.turns).bind(c.eligible==1 ? c.pool : -1).bind(c.selected).bind(c.reason.c_str()).addRowToBatch();
+					kCandidateBatch->BeginLogRow().bind(decision).bind(playerName.c_str()).bind(cityName.c_str()).bind(KindName(c.kind)).bind(symbol.c_str()).bind(c.base).bind(c.sanity).bind(c.finalWeight).bind(c.turns).bind(c.eligible==1 ? c.pool : -1).bind(c.selected).bind(c.reason.c_str()).addRowToBatch();
 				}
 
-
-				kCandidateBatch.flush();
-				// Allocate only as the finalized summary is emitted. Events retain native emission order.
-				GET_SQLITE_LOGGER().BeginLogRow("AIProductionDecision").bind(++nextObservation).bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(conflictingFlavorStates ? -1 : flavorState).bind(m_caller).bind(decisionTrigger.c_str()).bind(selectionMode.c_str()).bind(winnerKindName.c_str()).bind(winnerObjectType.c_str()).bind(productionBeforeObjectType.c_str()).bind(productionAfterObjectType.c_str()).bind(orderOutcome.c_str()).bind(selectedAction.c_str()).execute();
+				// ObservationID preserves semantic ordering; physical table commits are turn-batched.
+				TurnBatch(decisionBatch,"AIProductionDecision")->BeginLogRow().bind(++nextObservation).bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(conflictingFlavorStates ? -1 : flavorState).bind(m_caller).bind(decisionTrigger.c_str()).bind(selectionMode.c_str()).bind(winnerKindName.c_str()).bind(winnerObjectType.c_str()).bind(productionBeforeObjectType.c_str()).bind(productionAfterObjectType.c_str()).bind(orderOutcome.c_str()).bind(selectedAction.c_str()).addRowToBatch();
 			}
 			candidates.clear();
 		} else if (kind==PROCESS_UNIT_PROXY) {
@@ -416,7 +451,7 @@ namespace AIUnitDecisionTrace {
 		if (scoreCaused) Term("t043","sanity","REJECT",score,0,SR_UNKNOWN,0,"REJECTED",rule);
 		else {
 			c.pending.clear();
-			if (filters) GET_SQLITE_LOGGER().BeginLogRow("AIProductionFilter").bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(KindName(kind)).bind(Symbol(kind,object).c_str()).bind(rule).execute();
+			if (filters) TurnBatch(filterBatch,"AIProductionFilter")->BeginLogRow().bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(KindName(kind)).bind(Symbol(kind,object).c_str()).bind(rule).addRowToBatch();
 		}
 	}
 	void Recommendation(int unit,int role,int before,int turns,int after) {
