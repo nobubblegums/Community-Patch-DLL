@@ -24,7 +24,7 @@ namespace AIUnitDecisionTrace {
 		int nextFlavorState=0, flavorState=-1;
 		int nextObservation=0;
 		CvString decisionType, decisionTrigger, selectedAction;
-		CvString currentOrderObjectType, winnerKindName, winnerObjectType;
+		CvString productionBeforeObjectType, productionAfterObjectType, orderOutcome, winnerKindName, winnerObjectType;
 		bool consumedFlavor=false, observedAction=false;
 		bool conflictingFlavorStates=false;
 		bool recommendation=false;
@@ -101,10 +101,10 @@ namespace AIUnitDecisionTrace {
 		}
 		void Ensure() {
 			if(registered)return;
-			const char* d[]={"I:ObservationID","I:DecisionID","T:Player","T:City","I:FlavorStateID","T:DecisionType","T:DecisionTrigger","T:SelectionMode","T:WinnerKindName","T:WinnerObjectType","T:CurrentOrderObjectType","T:ProposedAction"};
-			Register("AIProductionDecision",d,12);
-			const char* c[]={"I:DecisionID","T:Player","T:City","T:DecisionType","T:SelectionMode","T:BuildableKindName","T:ObjectType","I:InitialWeight","I:SanityWeight","I:FinalWeight","I:EstimatedTurnsLeft","I:PoolIndex","I:Selected","T:Reason"};
-			Register("AIProductionCandidate",c,14);
+			const char* d[]={"I:ObservationID","I:DecisionID","T:Player","T:City","I:FlavorStateID","T:DecisionType","T:DecisionTrigger","T:SelectionMode","T:WinnerKindName","T:WinnerObjectType","T:ProductionBeforeObjectType","T:ProductionAfterObjectType","T:OrderOutcome","T:ProposedAction"};
+			Register("AIProductionDecision",d,14);
+			const char* c[]={"I:DecisionID","T:Player","T:City","T:BuildableKindName","T:ObjectType","I:InitialWeight","I:SanityWeight","I:FinalWeight","I:EstimatedTurnsLeft","I:PoolIndex","I:Selected","T:Reason"};
+			Register("AIProductionCandidate",c,12);
 			const char* t[]={"I:DecisionID","I:Sequence","T:Player","T:City","T:BuildableKindName","T:ObjectType","I:BeforeValue","I:Operand","I:AfterValue","T:Step","T:Target","T:VariableName","T:Operation","T:Reason","T:ParentObjectType"};
 			Register("AIProductionTerm",t,15);
 			const char* f[]={"I:StateID","I:PlayerID","T:EventType","T:Subject","I:Value"};
@@ -246,6 +246,14 @@ namespace AIUnitDecisionTrace {
 		if (decisionType=="ChooseHurry" && before!=after) Term("","competition","DURATION",before,turns,after,0,"APPLIED","");
 		if (decisionType=="ChooseHurry") c.hasScore=false;
 	}
+	// Only pushOrder reports queue application; Hurry investment does not insert an order.
+	void ProductionOrderResult(const CvCity* c,int origin,const char* outcome) {
+		if (!c || !Enabled() || origin!=decision || player!=c->getOwner() || city!=c->GetID() || decisionType!="ChooseProduction") return;
+		const OrderData* head=c->headOrderQueueNode();
+		productionAfterObjectType=head ? Symbol(OrderKind(head->eOrderType),head->iData1) : "UNKNOWN";
+		orderOutcome=outcome;
+		observedAction=true;
+	}
 	void ProductionEvent(const CvCity* c,const char* type,int order,int obj,int origin,const char* currency,const char* result) {
 		if (!c || !PlayerEnabled(c->getOwner()) || obj<0 || !GET_SQLITE_LOGGER().IsEnabled()) return;
 		Ensure();
@@ -306,12 +314,13 @@ namespace AIUnitDecisionTrace {
 			decisionType=caller;
 			decisionTrigger="UNKNOWN";
 			selectedAction="NONE";
-			currentOrderObjectType="UNKNOWN";
+			productionBeforeObjectType=productionAfterObjectType="UNKNOWN";
+			orderOutcome="NONE";
 			winnerKindName=winnerObjectType="UNKNOWN";
 			consumedFlavor=observedAction=false;
 			const CvCity* traceCity=GET_PLAYER((PlayerTypes)p).getCity(c);
 			const OrderData* traceHead=traceCity ? traceCity->headOrderQueueNode() : NULL;
-			if (traceHead) currentOrderObjectType=Symbol(OrderKind(traceHead->eOrderType),traceHead->iData1);
+			if (traceHead) productionBeforeObjectType=Symbol(OrderKind(traceHead->eOrderType),traceHead->iData1);
 
 			ordinal=0;
 			flavorState=-1;
@@ -353,13 +362,13 @@ namespace AIUnitDecisionTrace {
 					const Candidate& c=it->second;
 					CvString symbol=Symbol(c.kind,c.object);
 					CvString playerName=PlayerName(c.player), cityName=CityName(c.player,c.city);
-					kCandidateBatch.BeginLogRow().bind(decision).bind(playerName.c_str()).bind(cityName.c_str()).bind(decisionType.c_str()).bind(selectionMode.c_str()).bind(KindName(c.kind)).bind(symbol.c_str()).bind(c.base).bind(c.sanity).bind(c.finalWeight).bind(c.turns).bind(c.eligible==1 ? c.pool : -1).bind(c.selected).bind(c.reason.c_str()).addRowToBatch();
+					kCandidateBatch.BeginLogRow().bind(decision).bind(playerName.c_str()).bind(cityName.c_str()).bind(KindName(c.kind)).bind(symbol.c_str()).bind(c.base).bind(c.sanity).bind(c.finalWeight).bind(c.turns).bind(c.eligible==1 ? c.pool : -1).bind(c.selected).bind(c.reason.c_str()).addRowToBatch();
 				}
 
 
 				kCandidateBatch.flush();
 				// Allocate only as the finalized summary is emitted. Events retain native emission order.
-				GET_SQLITE_LOGGER().BeginLogRow("AIProductionDecision").bind(++nextObservation).bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(conflictingFlavorStates ? -1 : flavorState).bind(m_caller).bind(decisionTrigger.c_str()).bind(selectionMode.c_str()).bind(winnerKindName.c_str()).bind(winnerObjectType.c_str()).bind(currentOrderObjectType.c_str()).bind(selectedAction.c_str()).execute();
+				GET_SQLITE_LOGGER().BeginLogRow("AIProductionDecision").bind(++nextObservation).bind(decision).bind(PlayerName(player).c_str()).bind(CityName(player,city).c_str()).bind(conflictingFlavorStates ? -1 : flavorState).bind(m_caller).bind(decisionTrigger.c_str()).bind(selectionMode.c_str()).bind(winnerKindName.c_str()).bind(winnerObjectType.c_str()).bind(productionBeforeObjectType.c_str()).bind(productionAfterObjectType.c_str()).bind(orderOutcome.c_str()).bind(selectedAction.c_str()).execute();
 			}
 			candidates.clear();
 		} else if (kind==PROCESS_UNIT_PROXY) {

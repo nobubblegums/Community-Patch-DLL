@@ -29397,7 +29397,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	if (!bValid)
 	{
-		if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, "PRODUCTION_ORDER_REJECTED", eOrder, iData1, traceDecisionID, "NONE", "REJECTED");
+		if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionOrderResult(this, traceDecisionID, "REJECTED");
 		return;
 	}
 
@@ -29458,7 +29458,7 @@ void CvCity::pushOrder(OrderTypes eOrder, int iData1, int iData2, bool bSave, bo
 
 	CvInterfacePtr<ICvCity1> pCity = GC.WrapCityPointer(this);
 	DLLUI->SetSpecificCityInfoDirty(pCity.get(), CITY_UPDATE_TYPE_PRODUCTION);
-	if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionEvent(this, tracePreviousOrder<0 ? "PRODUCTION_ORDER_STARTED" : tracePreviousOrder==eOrder && tracePreviousObject==iData1 ? "PRODUCTION_ORDER_RESELECTED" : "PRODUCTION_ORDER_REPLACED", eOrder, iData1, traceDecisionID);
+	if (MOD_AI_UNIT_DECISION_LOGGING && traceDecisionID) AIUnitDecisionTrace::ProductionOrderResult(this, traceDecisionID, tracePreviousOrder<0 ? "STARTED" : tracePreviousOrder==eOrder && tracePreviousObject==iData1 ? "RESELECTED" : "REPLACED");
 }
 
 

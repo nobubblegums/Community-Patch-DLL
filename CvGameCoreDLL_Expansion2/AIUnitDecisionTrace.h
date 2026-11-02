@@ -8,6 +8,7 @@ namespace AIUnitDecisionTrace {
  void DecisionContext(const char*);
  void DecisionAction(const char*);
  void Duration(int,int,int);
+ void ProductionOrderResult(const CvCity*,int,const char*);
  void ProductionEvent(const CvCity*,const char*,int,int,int = 0,const char* = "NONE",const char* = "APPLIED");
  // Disabled until Begin; preserves one action outcome across native early returns.
  class Action { public: Action(); ~Action(); void Begin(const CvCity*,int,int,int,bool = false,int = 0); void Success(bool = false); private: const CvCity* m_city; int m_decision,m_kind,m_object; const char* m_type; const char* m_currency; bool m_success,m_enabled; Action(const Action&); Action& operator=(const Action&); };
