@@ -14,6 +14,7 @@
 #include "CvEconomicAI.h"
 #include "CvDiplomacyAI.h"
 #include "CvGrandStrategyAI.h"
+#include "AIUnitDecisionTrace.h"
 // include this after all other headers
 #include "LintFree.h"
 
@@ -21,7 +22,8 @@
 /// Constructor
 CvUnitProductionAI::CvUnitProductionAI(CvCity* pCity,  CvUnitXMLEntries* pUnits):
 	m_pCity(pCity),
-	m_pUnits(pUnits)
+	m_pUnits(pUnits),
+	m_traceFlavorState(-1)
 {
 }
 
@@ -35,6 +37,7 @@ void CvUnitProductionAI::Reset()
 {
 	ASSERT(m_pUnits != NULL, "Unit Production AI init failure: unit entries are NULL");
 
+	m_traceFlavorState = -1;
 	m_UnitAIWeights.clear();
 
 	// Loop through reading each one and add an entry with 0 weight to our vector
@@ -58,6 +61,7 @@ void CvUnitProductionAI::Read(FDataStream& kStream)
 {
 	CvStreamLoadVisitor serialVisitor(kStream);
 	Serialize(*this, serialVisitor);
+	m_traceFlavorState = -1;
 }
 
 /// Serialization write
@@ -103,12 +107,28 @@ int CvUnitProductionAI::GetWeight(UnitTypes eUnit)
 	if (m_pCity->getOwner() == BARBARIAN_PLAYER)
 		return 1;
 
-	return m_UnitAIWeights.GetWeight(eUnit);
+	const int weight = m_UnitAIWeights.GetWeight(eUnit);
+	if (MOD_AI_UNIT_DECISION_LOGGING) TraceWeight(eUnit, weight);
+	return weight;
+}
+
+void CvUnitProductionAI::TraceConsumeFlavorState()
+{
+	AIUnitDecisionTrace::ConsumeFlavorState(m_traceFlavorState);
+}
+
+void CvUnitProductionAI::TraceWeight(UnitTypes eUnit, int weight)
+{
+	if (!MOD_AI_UNIT_DECISION_LOGGING) return;
+	TraceConsumeFlavorState();
+	AIUnitDecisionTrace::Event("CACHED_WEIGHT", "t002", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, weight, 0);
 }
 
 /// Recommend highest-weighted unit
 UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllowStrategicResource)
 {
+	AIUnitDecisionTrace::Scope traceScope;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceScope.Begin("RecommendUnit", m_pCity->getOwner(), m_pCity->GetID());
 	if(eUnitAIType <= NO_UNITAI)
 	{
 		return NO_UNIT;
@@ -121,6 +141,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 	for(int iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
 		const UnitTypes eUnit = static_cast<UnitTypes>(iUnitLoop);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, eUnit);
 		CvUnitEntry* pkUnitInfo = GC.getUnitInfo(eUnit);
 		if(pkUnitInfo)
 		{
@@ -137,6 +158,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 				// Update weight based on turns to construct
 				int iTurnsLeft = m_pCity->getProductionTurnsLeft(eUnit, 0);
 				int iTempWeight = m_UnitAIWeights.GetWeight(eUnit);
+				if (MOD_AI_UNIT_DECISION_LOGGING) TraceWeight(eUnit, iTempWeight);
 				if (iTempWeight == 0)
 				{
 					const int iNumFlavors = GC.getNumFlavorTypes();
@@ -144,9 +166,12 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 					{
 						iTempWeight += pkUnitInfo->GetFlavorValue(iFlavorLoop);
 					}
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iTempWeight, 0);
 				}
 
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetObject(eUnit);
 				int iWeight = CityStrategyAIHelpers::ReweightByTurnsLeft(iTempWeight, iTurnsLeft);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Recommendation(eUnit, eUnitAIType, iTempWeight, iTurnsLeft, iWeight);
 				if(iWeight > 0)
 					m_Buildables.push_back(iUnitLoop, iWeight);
 			}
@@ -159,6 +184,7 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 	{
 		m_Buildables.StableSortItems();
 		LogPossibleBuilds(eUnitAIType);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("ROLE_RECOMMENDED", "t004", m_pCity->getOwner(), m_pCity->GetID(), -1, m_Buildables.GetElement(0), eUnitAIType, m_Buildables.GetWeight(0));
 		return (UnitTypes)m_Buildables.GetElement(0);
 	}
 
@@ -171,14 +197,26 @@ UnitTypes CvUnitProductionAI::RecommendUnit(UnitAITypes eUnitAIType, bool bAllow
 
 int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation, int iFlavorWeight, bool bForPurchase, bool bFree)
 {
+	AIUnitDecisionTrace::Scope traceScope;
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+	{
+		traceScope.Begin("CheckUnitBuildSanity", m_pCity->getOwner(), m_pCity->GetID());
+		AIUnitDecisionTrace::SetObject(eUnit);
+		AIUnitDecisionTrace::Event("INPUT", "t005", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, iFlavorWeight, (int)bForOperation, "FlavorWeight;ForOperation");
+		AIUnitDecisionTrace::Event("INPUT", "t006", m_pCity->getOwner(), m_pCity->GetID(), -1, eUnit, (int)bForPurchase, (int)bFree, "ForPurchase;Free");
+	}
 	//value to be added
 	int iBonus = 0;
+	int traceBonus = 0;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceBonus = iBonus;
 
 	if(iFlavorWeight < 1)
 		return SR_IMPOSSIBLE;
 
 	//this seems to work well to bring the raw flavor weight into a sensible range [0 ... 200]
 	iFlavorWeight = sqrti(10 * iFlavorWeight);
+	int traceFlavorWeight = 0;
+	if (MOD_AI_UNIT_DECISION_LOGGING) traceFlavorWeight = iFlavorWeight;
 
 	CvUnitEntry* pkUnitEntry = GC.getUnitInfo(eUnit);
 	if (!pkUnitEntry)
@@ -190,23 +228,27 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	CvPlayerAI& kPlayer = GET_PLAYER(m_pCity->getOwner());
 	if (!bFree && bForPurchase && !m_pCity->IsCanPurchase(/*bTestPurchaseCost*/ true, /*bTestTrainable*/ true, eUnit, NO_BUILDING, NO_PROJECT, YIELD_GOLD))
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("GOLD_PURCHASE_UNAVAILABLE", false);
 		return SR_IMPOSSIBLE;
 	}
 
 	if (!bFree && !bForPurchase && m_pCity->IsPuppet())
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("PUPPET_CANNOT_TRAIN", false);
 		return SR_IMPOSSIBLE;
 	}
 
 	bool bDesperate = m_pCity->isUnderSiege();
 	if (!bFree && bDesperate && !bCombat)
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_UNDER_SIEGE_NONCOMBAT_UNIT", false);
 		return SR_STRATEGY;
 	}
 
 	// Don't build units in underdeveloped cities
 	if (m_pCity->GetCityBuildings()->GetNumBuildings() < 2 && !bDesperate && !bForPurchase)
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_UNDERDEVELOPED", false);
 		return SR_STRATEGY;
 	}
 
@@ -218,6 +260,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		{
 			if (pkUnitEntry->GetUpgradeUnitClass(*it))
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("UPGRADED_UNIT_AVAILABLE", false);
 				return SR_STRATEGY;
 			}
 		}
@@ -232,9 +275,15 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			int iTurnsLeft = kPlayer.getTurnsToBankruptcy(iAverageGoldPerUnit);
 
 			if (iTurnsLeft < 9)
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("UNIT_MAINTENANCE_BANKRUPTCY", false);
 				return SR_MAINTENANCE;
+			}
 			else if (iTurnsLeft < 17)
+			{
 				iBonus -= iAverageGoldPerUnit*25;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t008", 2, traceBonus, iBonus);
+			}
 		}
 	}
 
@@ -257,7 +306,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		}
 
 		if (!bHavePlot)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_COMBAT_UNIT_PLACEMENT", false);
 			return SR_IMPOSSIBLE;
+		}
 	}
 
 	int iNumExplorers = kPlayer.GetNumUnitsWithUnitAI(UNITAI_EXPLORE, true, true);
@@ -287,11 +339,20 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	if (bNeedsSupply)
 	{
 		if (pkUnitEntry->GetDomainType() == DOMAIN_LAND && pkUnitEntry->GetDefaultUnitAIType() != UNITAI_EXPLORE && iNumLandUnits >= kPlayer.GetMilitaryAI()->GetRecommendLandArmySize())
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_LAND_FORCE_REACHED", false);
 			return SR_UNITSUPPLY;
+		}
 		else if (pkUnitEntry->GetDomainType() == DOMAIN_SEA && iNumSeaUnits >= kPlayer.GetMilitaryAI()->GetRecommendNavySize())
-			return SR_UNITSUPPLY;
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_NAVY_REACHED", false);
+				return SR_UNITSUPPLY;
+			}
 		else if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_EXPLORE && iNumExplorers >= kPlayer.GetMilitaryAI()->GetRecommendedExplorers())
-			return SR_UNITSUPPLY;
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("RECOMMENDED_EXPLORERS_REACHED", false);
+				return SR_UNITSUPPLY;
+			}
 	}
 
 	//only war with majors count
@@ -301,41 +362,60 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (bNeedsSupply)
 		{
 			if (iNumTotalUnits > max(4, ((kPlayer.GetCurrentEra() + 3) * max(1, kPlayer.getNumCities()))))
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_TOTAL_FORCE_LIMIT", false);
 				return SR_UNITSUPPLY;
+			}
 
 			if (pkUnitEntry->GetDomainType() == DOMAIN_SEA)
 			{
 				if (iNumSeaUnits <= 2)
+				{
 					iBonus += max(0, 300 - (iNumSeaUnits * 100));
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 3, traceBonus, iBonus);
+				}
 
 				int iLimit = kPlayer.GetMilitaryAI()->GetRecommendNavySize();
 				if (iNumSeaUnits < iLimit)
 				{
 					iBonus += (iLimit - iNumSeaUnits) * 100;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 4, traceBonus, iBonus);
 					if (kPlayer.GetMinorCivAI()->IsRecentlyBulliedByAnyMajor())
 					{
 						iBonus += 100;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 5, traceBonus, iBonus);
 					}
 				}
 				else
-					return SR_UNITSUPPLY;
+					{
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_RECOMMENDED_NAVY_REACHED", false);
+						return SR_UNITSUPPLY;
+					}
 			}
 			else if (pkUnitEntry->GetDomainType() == DOMAIN_LAND)
 			{
 				if (iNumLandUnits <= 2)
+				{
 					iBonus += max(0, 800 - (iNumLandUnits * 100));
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 6, traceBonus, iBonus);
+				}
 
 				int iLimit = kPlayer.GetMilitaryAI()->GetRecommendLandArmySize();
 				if (iNumLandUnits < iLimit)
 				{
 					iBonus += (iLimit - iNumLandUnits) * 150;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 7, traceBonus, iBonus);
 					if (kPlayer.GetMinorCivAI()->IsRecentlyBulliedByAnyMajor())
 					{
 						iBonus += 250;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t012", 8, traceBonus, iBonus);
 					}
 				}
 				else
-					return SR_UNITSUPPLY;
+					{
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_RECOMMENDED_LAND_FORCE_REACHED", false);
+						return SR_UNITSUPPLY;
+					}
 			}
 		}
 	}
@@ -351,7 +431,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{
 				CvUnit* pGarrison = m_pCity->GetGarrisonedUnit();
 				if (pGarrison->getDomainType() == DOMAIN_LAND)
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SMALL_LANDMASS_ALREADY_GARRISONED", false);
 					return SR_USELESS;
+				}
 			}
 		}
 	}
@@ -411,9 +494,11 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if(kPlayer.getNumResourceAvailable((ResourceTypes)pkUnitEntry->GetResourceType(), false) > 0)
 			{
 				iBonus += 5 * kPlayer.getNumResourceAvailable((ResourceTypes)pkUnitEntry->GetResourceType(), false);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t014", 9, traceBonus, iBonus);
 			}
 			else
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("REQUIRED_RESOURCE_UNAVAILABLE", false);
 				return SR_IMPOSSIBLE;
 			}
 		}
@@ -428,6 +513,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				{
 					if(kPlayer.getNumResourceAvailable(eAluminumResource, false) <= (kPlayer.GetNumAluminumStillNeededForSpaceship() + kPlayer.GetNumAluminumStillNeededForCoreCities()))
 					{
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ALUMINUM_RESERVED_FOR_SPACESHIP_AND_CORE_CITIES", false);
 						return SR_STRATEGY;
 					}
 				}
@@ -438,6 +524,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{	
 				//if we have a lot of the resource, we should spend it ... the units are usually good
 				iBonus += max(40, (kPlayer.getNumResourceAvailable(eNeededResource, false) - pkUnitEntry->GetResourceQuantityRequirement(eNeededResource)) * 40);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t015", 10, traceBonus, iBonus);
 			}
 		}
 
@@ -448,6 +535,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (m_pCity->IsUnitInvestment((UnitClassTypes)pkUnitEntry->GetUnitClassType()))
 		{
 			iBonus += 500;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t015", 11, traceBonus, iBonus);
 		}
 
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_CITY_SPECIAL)
@@ -467,10 +555,14 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (iNum < iNumArmies)
 			{
 				iBonus += 2000 * max(3 - iNum, 1);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t016", 12, traceBonus, iBonus);
 
 				// If we are planning a city attack, pretty much force this
 				if (bForOperation)
+				{
 					iBonus += 10000;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t016", 13, traceBonus, iBonus);
+				}
 			}
 		}
 
@@ -481,11 +573,13 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			int iNum = kPlayer.GetNumUnitsWithUnitAI(UNITAI_CITY_BOMBARD, true);
 			if (iNum < iTotalAlready)
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_ATTACK_SUPPORT_EXCEEDS_BOMBARD_UNITS", false);
 				return SR_USELESS;
 			}
 			else
 			{
 				iBonus += 10 * (5 - iTotalAlready);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t017", 14, traceBonus, iBonus);
 			}
 		}
 
@@ -496,15 +590,18 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if(pkUnitEntry->GetNukeDamageLevel() > 0)
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t018", 15, traceBonus, iBonus);
 			}
 			//Cruise Missiles? Only if we don't have any nukes lying around...
 			else if(pkUnitEntry->GetRangedCombat() > 0 && kPlayer.getNumNukeUnits() > 0)
 			{
 				iBonus -= 50;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t018", 16, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus += 25;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t018", 17, traceBonus, iBonus);
 			}
 		}
 
@@ -520,6 +617,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				{
 					//Bonus based on difference in gold - the more money we have, the more we want this!
 					iBonus += min(250, iSurplus);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t019", 18, traceBonus, iBonus);
 				}
 			}
 			else if(bCombat && !bAtWar)
@@ -530,6 +628,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				{
 					//Bonus based on difference in gold - the more money we have, the more we want this!
 					iBonus += min(200, iSurplus);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t019", 19, traceBonus, iBonus);
 				}
 			}
 			else if(!bCombat)
@@ -540,6 +639,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				{
 					//Bonus based on difference in gold - the more money we have, the more we want this!
 					iBonus += min(150, iSurplus);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t019", 20, traceBonus, iBonus);
 				}
 			}
 		}
@@ -548,10 +648,16 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_CARRIER_SEA)
 		{
 			if (kPlayer.isMinorCiv())
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MINOR_CIV_CARRIER", false);
 				return SR_USELESS;
+			}
 
 			if (!bForOperation && !MilitaryAIHelpers::IsTestStrategy_NeedAirCarriers(&kPlayer))
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AIR_CARRIER_NOT_NEEDED", false);
 				return SR_BALANCE;
+			}
 		}
 
 		//Need Explorers?
@@ -563,6 +669,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (iExploreBonus > 0)
 			{
 				iBonus += iExploreBonus * 500;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t020", 21, traceBonus, iBonus);
 			}
 		}
 
@@ -584,7 +691,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{
 				// Are we an actual port city?
 				if (!m_pCity->IsConnectedToOcean())
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_NOT_CONNECTED_TO_OCEAN", false);
 					return SR_USELESS;
+				}
 
 				int iCurrent = iNumSeaUnits;
 				int iDesired = kPlayer.GetMilitaryAI()->GetRecommendNavySize();
@@ -592,7 +702,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 
 				// German UA encourages producing lots of units to gift to City-States
 				if (iValue > 0 && kPlayer.GetPlayerTraits()->GetMinorInfluencePerGiftedUnit() > 0)
+				{
 					iBonus += 75;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t021", 22, traceBonus, iBonus);
+				}
 
 				iValue *= max(1, (int)kPlayer.GetCurrentEra());
 
@@ -642,6 +755,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 					}
 				}
 				iBonus += iValue * 30;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t021", 23, traceBonus, iBonus);
 			}
 		}
 		//Land Units Critically Needed?
@@ -655,7 +769,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 
 				// German UA encourages producing lots of units to gift to City-States
 				if (iValue > 0 && kPlayer.GetPlayerTraits()->GetMinorInfluencePerGiftedUnit() > 0)
+				{
 					iBonus += 150;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t022", 24, traceBonus, iBonus);
+				}
 
 				iValue *= max(1, (int)kPlayer.GetCurrentEra());
 
@@ -716,6 +833,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 					}
 				}
 				iBonus += iValue * 30;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t022", 25, traceBonus, iBonus);
 			}
 		}
 
@@ -732,21 +850,30 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			case UNITAI_ATTACK_AIR:
 			{
 				if (ourBombers * 2 > ourFighters * 3)
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("BOMBERS_EXCEED_FIGHTER_BALANCE", false);
 					return SR_BALANCE;
+				}
 
 				iBonus += 2000 + emptySlots*100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t023", 26, traceBonus, iBonus);
 				break;
 			}
 			case UNITAI_DEFENSE_AIR:
 			{
 				if (ourFighters * 2 > ourBombers * 3)
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("FIGHTERS_EXCEED_BOMBER_BALANCE", false);
 					return SR_BALANCE;
+				}
 
 				iBonus += 2000 + emptySlots*100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t023", 27, traceBonus, iBonus);
 				break;
 			}
 			default: //missiles etc
 				iBonus += 1000;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t023", 28, traceBonus, iBonus);
 			}
 		}
 
@@ -760,7 +887,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			{
 				PlayerTypes eLoopPlayer = (PlayerTypes)iPlayerLoop;
 
-				if (eLoopPlayer != kPlayer.GetID() && kPlayer.GetDiplomacyAI()->IsPlayerValid(eLoopPlayer) && 
+				if (eLoopPlayer != kPlayer.GetID() && kPlayer.GetDiplomacyAI()->IsPlayerValid(eLoopPlayer) &&
 					(kPlayer.GetProximityToPlayer(eLoopPlayer) == PLAYER_PROXIMITY_NEIGHBORS || GET_TEAM(kPlayer.getTeam()).isAtWar(GET_PLAYER(eLoopPlayer).getTeam())))
 				{
 					int iTheirAir = GET_PLAYER(eLoopPlayer).GetNumUnitsWithUnitAI(UNITAI_DEFENSE_AIR, false) + GET_PLAYER(eLoopPlayer).GetNumUnitsWithUnitAI(UNITAI_ATTACK_AIR, false);
@@ -780,6 +907,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 
 			iBonus += iNeedAir * 50;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t024", 29, traceBonus, iBonus);
 		}
 	
 		/////////////
@@ -791,6 +919,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if(eStrategyConquest != NO_ECONOMICAISTRATEGY && kPlayer.GetEconomicAI()->IsUsingStrategy(eStrategyConquest))
 			{
 				iBonus += 50;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t025", 30, traceBonus, iBonus);
 			}
 		}
 
@@ -798,23 +927,29 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (iProductionBonus > 0)
 		{
 			iBonus += (iProductionBonus / 5);
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t025", 31, traceBonus, iBonus);
 		}
 
 		//Diplomatic Units!
 		if (MOD_BALANCE_VP && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_MESSENGER)
 		{
 			if (!kPlayer.HasMetValidMinorCiv())
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_MET_VALID_MINOR_CIV", false);
 				return SR_USELESS;
+			}
 
 			//There's a diplomat waiting here? Abort!
 			if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_MESSENGER, m_pCity->getOwner()) > 0)
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MESSENGER_ALREADY_IN_CITY", false);
 				return SR_USELESS;
 			}
 
 			//There's 2 sitting around? Abort!
 			if (kPlayer.GetNumUnitsWithUnitAI(UNITAI_MESSENGER, true) > 3)
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MESSENGER_COUNT_EXCEEDS_LIMIT", false);
 				return SR_USELESS;
 			}
 
@@ -849,6 +984,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 			else
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("DIPLOMAT_NEED_STRATEGIES_INACTIVE", false);
 				return SR_USELESS;
 			}
 
@@ -862,6 +998,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 
 			iBonus += iInfluence;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t026", 38, traceBonus, iBonus);
 		}
 
 		if(pkUnitEntry->GetSpaceshipProject() != NO_PROJECT)
@@ -869,6 +1006,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			// For the AI, spaceship production is controlled in AI_doSpaceshipAndUtopiaProduction, overriding normal AI production selection
 			if (!kPlayer.isHuman(ISHUMAN_AI_CITY_PRODUCTION) && !kPlayer.isMinorCiv())
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SPACESHIP_PRODUCTION_CONTROLLED_SEPARATELY", false);
 				return SR_STRATEGY;
 			}
 
@@ -876,27 +1014,35 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (eStrategySS != NO_ECONOMICAISTRATEGY && kPlayer.GetEconomicAI()->IsUsingStrategy(eStrategySS))
 			{
 				iBonus += 10000;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t027", 39, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus += 1000;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t027", 40, traceBonus, iBonus);
 			}
 			if(kPlayer.GetDiplomacyAI()->IsCloseToSpaceshipVictory())
 			{
 				iBonus += 10000;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t027", 41, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus += 2500;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t027", 42, traceBonus, iBonus);
 			}
 
 			if(m_pCity->getSpaceProductionModifier() > 0)
 			{
 				iBonus += (m_pCity->getSpaceProductionModifier() * 100);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t027", 43, traceBonus, iBonus);
 			}
 			//Don't zero out because of this penalty.
 			if (iBonus <= 0)
+			{
 				iBonus = 1;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ASSIGN("t027", 44, traceBonus, iBonus);
+			}
 		}
 
 		/////////
@@ -952,6 +1098,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				}
 			}
 			iBonus += iReligiousBonus;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t028", 51, traceBonus, iBonus);
 		}
 
 		//////////////
@@ -963,112 +1110,138 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			//No if we're small.
 			if (m_pCity->getPopulation() <= 4)
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("CITY_POPULATION_TOO_LOW_FOR_TRADE_UNIT", false);
 				return SR_USELESS;
 			}
 			
 			if (pkUnitEntry->GetDomainType() == DOMAIN_LAND)
 			{
 				iBonus += m_pCity->GetTradePriorityLand() * 10;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t029", 52, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus += m_pCity->GetTradePrioritySea() * 10;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t029", 53, traceBonus, iBonus);
 			}
 
 			//Less often if at war.
 			if (bAtWar)
 			{
 				iBonus -= 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t029", 54, traceBonus, iBonus);
 			}
 
 			if (kPlayer.GetPlayerTraits()->IsDiplomat())
 			{
 				iBonus += 750;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t029", 55, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus += 700;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t029", 56, traceBonus, iBonus);
 			}
 		}
 
 		if (pkUnitEntry->GetGoldenAgeTurns() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 57, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsTourism() || kPlayer.GetPlayerTraits()->IsExpansionist())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 58, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetBaseBeakersTurnsToCount() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 59, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsNerd())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 60, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->IsCultureBoost() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 61, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsTourism())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 62, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_MESSENGER)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 63, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsDiplomat())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 64, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetBaseGold() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 65, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsDiplomat())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 66, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->IsCanBuyCityState() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 67, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsDiplomat())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 68, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetBaseHurry() != 0)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 69, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsSmaller() || kPlayer.GetPlayerTraits()->IsWarmonger())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 70, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_GENERAL)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 71, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsExpansionist() || kPlayer.GetPlayerTraits()->IsWarmonger())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 72, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->GetDefaultUnitAIType() == UNITAI_ADMIRAL)
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 73, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsDiplomat() || kPlayer.GetPlayerTraits()->IsWarmonger())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 74, traceBonus, iBonus);
 			}
 		}
 		if (pkUnitEntry->IsGreatWorkUnit())
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 75, traceBonus, iBonus);
 			if (kPlayer.GetPlayerTraits()->IsTourism())
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t030", 76, traceBonus, iBonus);
 			}
 		}
 	}
@@ -1078,19 +1251,29 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	{
 		//Don't build a settler if we're about to grow.
 		if (m_pCity->getFoodTurnsLeft() <= 1)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SETTLER_CITY_GROWTH_IMMINENT", false);
 			return SR_STRATEGY;
+		}
 
 		//this checks war state, grand strategy and more!
 		static EconomicAIStrategyTypes eNoMoreExpand = (EconomicAIStrategyTypes)GC.getInfoTypeForString("ECONOMICAISTRATEGY_ENOUGH_EXPANSION");
 		if (GET_PLAYER(m_pCity->getOwner()).GetEconomicAI()->IsUsingStrategy(eNoMoreExpand))
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ECONOMICAISTRATEGY_ENOUGH_EXPANSION", false);
 			return SR_STRATEGY;
+		}
 
 		AICityStrategyTypes eEnoughSettlers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_ENOUGH_SETTLERS");
 		if (m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eEnoughSettlers))
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AICITYSTRATEGY_ENOUGH_SETTLERS", false);
 			return SR_BALANCE;
+		}
 
 		if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_SETTLE, m_pCity->getOwner()) > 0)
 		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("SETTLER_ALREADY_IN_CITY", false);
 			return SR_USELESS;
 		}
 
@@ -1128,13 +1311,17 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 
 		//sometimes it's just not right
 		if (iFlavorExpansion <= 0)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NONPOSITIVE_ADJUSTED_EXPANSION_FLAVOR", false);
 			return SR_STRATEGY;
+		}
 
 		//if we got this far we want to expand, so let's bump the number of times we've skipped this.
 		iFlavorExpansion += kPlayer.GetMilitaryAI()->GetNumberOfTimesSettlerBuildSkippedOver() * 10;
 
 		//bring it into a sensible range
 		iBonus += iFlavorExpansion*23;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t031", 85, traceBonus, iBonus);
 	}
 
 	if(!kPlayer.isMinorCiv())
@@ -1145,6 +1332,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			static EconomicAIStrategyTypes eWantArch = (EconomicAIStrategyTypes) GC.getInfoTypeForString("ECONOMICAISTRATEGY_NEED_ARCHAEOLOGISTS");
 			if(!kPlayer.GetEconomicAI()->IsUsingStrategy(eWantArch))
 			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("ECONOMICAISTRATEGY_NEED_ARCHAEOLOGISTS;INACTIVE", false);
 				return SR_BALANCE;
 			}
 			else
@@ -1153,16 +1341,19 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (iNumArch <= 0)
 				{
 					iBonus += 5000;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t032", 86, traceBonus, iBonus);
 				}
 				
 				if (kPlayer.GetDiplomacyAI()->IsGoingForCultureVictory())
 				{
 					iBonus += 5000;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t032", 87, traceBonus, iBonus);
 				}
 
 				if(kPlayer.GetArchaeologicalDigTourism() > 0)
 				{
 					iBonus += 2500;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t032", 88, traceBonus, iBonus);
 				}
 				for(int iI = 0; iI < NUM_YIELD_TYPES; iI++)
 				{
@@ -1175,6 +1366,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 					if(kPlayer.GetPlayerTraits()->GetArtifactYieldChanges(eYield) > 0)
 					{
 						iBonus += 500;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t032", 89, traceBonus, iBonus);
 					}
 				}
 			}
@@ -1186,7 +1378,10 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	{
 		CvTacticalDominanceZone* pZone = kPlayer.GetTacticalAI()->GetTacticalAnalysisMap()->GetZoneByCity(m_pCity,true);
 		if (pZone && pZone->GetOverallDominanceFlag() != TACTICAL_DOMINANCE_FRIENDLY)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKBOAT_ZONE_NOT_FRIENDLY", false);
 			return SR_STRATEGY;
+		}
 
 		CvPlayer& kPlayer = GET_PLAYER(m_pCity->getOwner());
 
@@ -1264,23 +1459,38 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (iWorkBoatsNeeded > 0)
 		{
 			if (!bForPurchase)
+			{
 				iBonus += (1000 * iWorkBoatsNeeded * (m_pCity->getPopulation() + kPlayer.GetCurrentEra()));
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t033", 90, traceBonus, iBonus);
+			}
 			else
+			{
 				iBonus += (1000 * iWorkBoatsNeeded) * (kPlayer.getCapitalCity()->getPopulation() + kPlayer.GetCurrentEra()) - iClosestPlotDistance;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t033", 91, traceBonus, iBonus);
+			}
 		}
 		else
-			return SR_USELESS;
+			{
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NO_ELIGIBLE_WORKBOAT_TARGETS", false);
+				return SR_USELESS;
+			}
 	}
 	//Make sure we need workers in this city.
 	if(pkUnitEntry->GetDefaultUnitAIType() == UNITAI_WORKER)
 	{
 		CvTacticalDominanceZone* pZone = kPlayer.GetTacticalAI()->GetTacticalAnalysisMap()->GetZoneByCity(m_pCity,false);
 		if (pZone && pZone->GetOverallDominanceFlag() != TACTICAL_DOMINANCE_FRIENDLY)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKER_ZONE_NOT_FRIENDLY", false);
 			return SR_STRATEGY;
+		}
 
 		//There's a worker waiting here? Abort!
 		if (m_pCity->plot()->getNumUnitsOfAIType(UNITAI_WORKER, m_pCity->getOwner()) > 0)
+		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("WORKER_ALREADY_IN_CITY", false);
 			return SR_USELESS;
+		}
 
 		int iNumBuilders = kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true);
 		int iMissingBuilders = kPlayer.getCitiesNeedingTerrainImprovements() + 1 - iNumBuilders; //one for roads
@@ -1289,17 +1499,20 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		static AICityStrategyTypes eNoWorkers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_ENOUGH_TILE_IMPROVERS");
 		if (eNoWorkers != NO_AICITYSTRATEGY && m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eNoWorkers))
 		{
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("AICITYSTRATEGY_ENOUGH_TILE_IMPROVERS", false);
 			return SR_USELESS;
 		}
 		static AICityStrategyTypes eWantWorkers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_WANT_TILE_IMPROVERS");
 		if (eWantWorkers != NO_AICITYSTRATEGY && m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eWantWorkers))
 		{
 			iBonus += (200 * iMissingBuilders * iScale);
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t034", 92, traceBonus, iBonus);
 		}
 		static AICityStrategyTypes eNeedWorkers = (AICityStrategyTypes)GC.getInfoTypeForString("AICITYSTRATEGY_NEED_TILE_IMPROVERS");
 		if (eNeedWorkers != NO_AICITYSTRATEGY && m_pCity->GetCityStrategyAI()->IsUsingCityStrategy(eNeedWorkers))
 		{
 			iBonus += (500 * iMissingBuilders * iScale);
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t034", 93, traceBonus, iBonus);
 		}
 	}
 	
@@ -1322,16 +1535,19 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			}
 
 			iBonus += iWarBooster * 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t035", 94, traceBonus, iBonus);
 		}
 		if (bAtWar)
 		{
 			if (bCombat)
 			{
 				iBonus += m_pCity->getThreatValue();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t035", 95, traceBonus, iBonus);
 			}
 			else
 			{
 				iBonus -= m_pCity->getThreatValue();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t035", 96, traceBonus, iBonus);
 			}
 		}
 		if (bCombat && bForOperation)
@@ -1339,6 +1555,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (kPlayer.GetMilitaryAI()->GetNumberOfTimesOpsBuildSkippedOver() > 0)
 			{
 				iBonus += (kPlayer.GetMilitaryAI()->GetNumberOfTimesOpsBuildSkippedOver() * 100);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t035", 97, traceBonus, iBonus);
 			}
 		}
 
@@ -1351,12 +1568,14 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (m_pCity == kPlayer.GetBestMilitaryCity((UnitCombatTypes)pkUnitEntry->GetUnitCombatType()))
 			{
 				iBonus += 25 * kPlayer.getNumCities();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t036", 98, traceBonus, iBonus);
 			}
 
 			//Let's try to build our units in our best cities only.
 			if (m_pCity == kPlayer.GetBestMilitaryCity(NO_UNITCOMBAT, pkUnitEntry->GetDomainType()))
 			{
 				iBonus += 25 * kPlayer.getNumCities();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t036", 99, traceBonus, iBonus);
 			}
 
 		}
@@ -1406,12 +1625,14 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (iPromotionBonus != 0)
 		{
 			iBonus += iPromotionBonus;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t037", 103, traceBonus, iBonus);
 		}
 	
 		//Uniques? They're generally good enough to spam.
 		if(kPlayer.getCivilizationInfo().isCivilizationUnitOverridden(pkUnitEntry->GetUnitClassType()))
 		{
 			iBonus += 100;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t037", 104, traceBonus, iBonus);
 		}
 
 		//For an operation? Build it!
@@ -1420,17 +1641,20 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if(bForOperation)
 			{
 				iBonus += 500;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t038", 105, traceBonus, iBonus);
 			}
 
 			//slight bump in value for ranged units, to counteract some other elements.
 			if (pkUnitEntry->GetRangedCombat() > 0)
 			{
 				iBonus += pkUnitEntry->GetRangedCombat();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t038", 106, traceBonus, iBonus);
 			}
 
 			if (kPlayer.IsUnderrepresentedUnitType(pkUnitEntry->GetDefaultUnitAIType()))
 			{
 				iBonus += 200;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t038", 107, traceBonus, iBonus);
 			}
 
 			if (eDomain == DOMAIN_LAND)
@@ -1439,6 +1663,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 				if (!pGarrison || pGarrison->getDomainType() != DOMAIN_LAND)
 				{
 					iBonus += 25;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t038", 108, traceBonus, iBonus);
 				}
 			}
 		}
@@ -1450,11 +1675,13 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if(bCombat)
 		{
 			iBonus += 300;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t039", 109, traceBonus, iBonus);
 		}
 		//Fewer civilians til we rectify this!
 		else
 		{
 			iBonus -= 300;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t039", 110, traceBonus, iBonus);
 		}
 	}
 
@@ -1464,20 +1691,28 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (bCombat)
 		{
 			iBonus += 300;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t039", 111, traceBonus, iBonus);
 		}
 		//Fewer civilians til we rectify this!
 		else
 		{
 			iBonus -= 300;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t039", 112, traceBonus, iBonus);
 		}
 	}
 	
 	if (bDesperate)
 	{
 		if (bCombat)
+		{
 			iBonus += 500;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t039", 113, traceBonus, iBonus);
+		}
 		else
+		{
 			iBonus -= 500;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t039", 114, traceBonus, iBonus);
+		}
 	}
 
 	if (bCombat)
@@ -1488,10 +1723,12 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyBarbs))
 		{
 			iBonus += 250;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t040", 115, traceBonus, iBonus);
 		}
 		else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyBarbsCritical))
 		{
 			iBonus += 500;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t040", 116, traceBonus, iBonus);
 		}
 	}
 
@@ -1505,16 +1742,19 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 			if (eUnit == eCurrentUnit && bAtWar)
 			{
 				iBonus += 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t040", 117, traceBonus, iBonus);
 			}
 			//a little boost if not at war (to finish)
 			else if (eUnit == eCurrentUnit && !bAtWar)
 			{
 				iBonus += 50;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t040", 118, traceBonus, iBonus);
 			}
 			// looking at another unit? let's not switch.
 			else if (GC.getUnitInfo(eCurrentUnit)->GetCombat() > 0 || GC.getUnitInfo(eCurrentUnit)->GetRangedCombat() > 0)
 			{
 				iBonus -= 100;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_SUB("t040", 119, traceBonus, iBonus);
 			}
 		}
 	}
@@ -1534,11 +1774,13 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	}
 
 	iBonus += iInstantYieldBonus;
+	if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t041", 121, traceBonus, iBonus);
 
 	//Make sure that free units are given some kind of value.
 	if (bFree && iBonus <= iFlavorWeight)
 	{
 		iBonus = iFlavorWeight;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ASSIGN("t041", 122, traceBonus, iBonus);
 	}
 
 	/*
@@ -1574,6 +1816,7 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	if (bForPurchase && bCombat && bDesperate)
 	{
 		iBonus += 250;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t041", 123, traceBonus, iBonus);
 	}
 
 	// MOD_AI_UNIT_PRODUCTION - NEW STRATEGIES -- consider if we have too much or too few of a unit
@@ -1604,57 +1847,108 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 		{
 		case UNITAI_RANGED:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyArcher))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 124, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughArcher))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_ARCHER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_CITY_BOMBARD:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySiege))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 125, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSiege))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SIEGE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_SKIRMISHER:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySkirmisher))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 126, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSkirmisher))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SKIRMISHER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_FAST_ATTACK:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyMobile))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 127, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughMobile))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_MOBILE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_ATTACK_SEA:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyNavalMelee))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 128, traceBonus, iBonus);
+			}
 			/*else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughNavalMelee))
 				return SR_BALANCE;*/ // ranged naval units may be resource limited, so don't discourage these
 			break;
 		case UNITAI_ASSAULT_SEA:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyNavalRanged))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 129, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughNavalRanged))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_NAVAL_RANGED", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_SUBMARINE:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategySubmarine))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 130, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughSubmarine))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_SUBMARINE", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_ATTACK_AIR:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyBomber))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 131, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughBomber))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_BOMBER", false);
+					return SR_BALANCE;
+				}
 			break;
 		case UNITAI_DEFENSE_AIR:
 			if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyFighter))
+			{
 				iBonus += iBonusValueFromStrategy;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t042", 132, traceBonus, iBonus);
+			}
 			else if (kPlayer.GetMilitaryAI()->IsUsingStrategy(eStrategyEnoughFighter))
-				return SR_BALANCE;
+				{
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("MILITARYAISTRATEGY_ENOUGH_FIGHTER", false);
+					return SR_BALANCE;
+				}
 			break;
 		default:
 			break;
@@ -1666,13 +1960,20 @@ int CvUnitProductionAI::CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation
 	//////
 
 	if (iBonus < 0)
+	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Reject("NEGATIVE_SANITY_BONUS", true, iBonus);
 		return SR_UNKNOWN;
+	}
 
 	//iValue modified by iBonus
 	iFlavorWeight += iBonus;
+	if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_ADD("t043", 133, traceFlavorWeight, iFlavorWeight);
 
 	if (m_pCity->IsOccupied() && !m_pCity->IsNoOccupiedUnhappiness())
+	{
 		iFlavorWeight /= 5;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AI_UNIT_TRACE_DIV("t043", 134, traceFlavorWeight, iFlavorWeight);
+	}
 
 	return max(1,iFlavorWeight);
 }

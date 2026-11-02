@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvGrandStrategyAI.h"
 #include "CvEconomicAI.h"
 #include "CvCitySpecializationAI.h"
@@ -1625,6 +1626,7 @@ void CvGrandStrategyAI::SetActiveGrandStrategy(AIGrandStrategyTypes eGrandStrate
 	if(eGrandStrategy != NO_AIGRANDSTRATEGY)
 	{
 		m_eActiveGrandStrategy = eGrandStrategy;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "GRAND_STRATEGY", GetAIGrandStrategies()->GetEntry(eGrandStrategy)->GetType(), 1);
 
 		SetNumTurnsSinceActiveSet(0);
 	}

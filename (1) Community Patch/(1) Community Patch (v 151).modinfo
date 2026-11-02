@@ -528,7 +528,7 @@
     <File md5="48C20B3BC16D3C6749CA45B17EE66CF3" import="0">Database Changes/Misc/MissionsChanges.sql</File>
     <File md5="6E6FF873C999780077863FAC3765E435" import="0">Database Changes/Misc/NewInterfaceModes.xml</File>
     <File md5="2123A61434FC880E07972AA8077E6301" import="0">Database Changes/Misc/CoreNewMissions.xml</File>
-    <File md5="75A911EA2AB0220A51F47C09260FC716" import="0">Database Changes/NewCustomModOptions.xml</File>
+    <File md5="D6B6C2DCF509BCC23EE9F4B91D210C3A" import="0">Database Changes/NewCustomModOptions.xml</File>
     <File md5="FAA2ADBA9E1F39D09806DC631A6DAB22" import="0">Database Changes/NewEnums.xml</File>
     <File md5="476D91532E8B5E9B97198D943F101FFD" import="0">Database Changes/NewEnumTables.xml</File>
     <File md5="BCC74E7904D5D9C19BF78E0933481F0E" import="0">Database Changes/Remapper.sql</File>

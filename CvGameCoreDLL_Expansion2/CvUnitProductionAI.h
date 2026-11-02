@@ -36,6 +36,9 @@ public:
 	// Establish/retrieve weights for one flavor
 	void AddFlavorWeights(FlavorTypes eFlavor, int iWeight);
 	int GetWeight(UnitTypes eUnit);
+	void TraceWeight(UnitTypes eUnit, int weight);
+	void TraceConsumeFlavorState();
+	void TraceFlavorUpdateComplete(int state) { m_traceFlavorState = state; }
 
 	// Recommend highest-weighted unit
 	int CheckUnitBuildSanity(UnitTypes eUnit, bool bForOperation, int iFlavorWeight, bool bForPurchase = false, bool bFree = false);
@@ -49,6 +52,7 @@ private:
 	// Private data
 	CvCity* m_pCity;
 	CvUnitXMLEntries* m_pUnits;
+	int m_traceFlavorState;
 	CvWeightedVector<int> m_UnitAIWeights;
 	CvWeightedVector<int> m_Buildables;
 };

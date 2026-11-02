@@ -111,6 +111,7 @@ CPP = [
     'CvGameCoreDLL_Expansion2\\Lua\\CvLuaTeam.cpp',
     'CvGameCoreDLL_Expansion2\\Lua\\CvLuaTeamTech.cpp',
     'CvGameCoreDLL_Expansion2\\Lua\\CvLuaUnit.cpp',
+    'CvGameCoreDLL_Expansion2\\AIUnitDecisionTrace.cpp',
     'CvGameCoreDLL_Expansion2\\CustomMods.cpp',
     'CvGameCoreDLL_Expansion2\\CvAchievementInfo.cpp',
     'CvGameCoreDLL_Expansion2\\CvAchievementUnlocker.cpp',

@@ -10,6 +10,7 @@
 #include "CvGameCoreUtils.h"
 #include "CvInternalGameCoreUtils.h"
 #include "CvGame.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvMap.h"
 #include "CvPlot.h"
 #include "CvPlayerAI.h"
@@ -4803,6 +4804,8 @@ int CvGame::getGameDatabaseId() const
 //	------------------------------------------------------------------------------------------------
 void CvGame::resolveGameDatabaseId()
 {
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+		AIUnitDecisionTrace::ResetFlavorObservation();
 	m_intGameId = 0;
 
 	if (m_strGameId.IsEmpty())
@@ -5500,7 +5503,7 @@ void CvGame::setAIAutoPlay(int iNewValue, PlayerTypes eReturnAsPlayer)
 			{
 				if (!pLoopCity->isProduction() || pLoopCity->isProductionProcess())
 				{
-					pLoopCity->AI_chooseProduction(false /*bInterruptWonders*/, false);
+					pLoopCity->AI_chooseProduction(false /*bInterruptWonders*/, false, "AI_CONTROL_ENABLED");
 				}
 			}
 			GET_PLAYER(eNewAIPlayer).AI_chooseResearch();

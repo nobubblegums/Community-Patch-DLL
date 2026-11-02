@@ -7,6 +7,7 @@
 	------------------------------------------------------------------------------------------------------- */
 
 #include "CvGameCoreDLLPCH.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvEconomicAI.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
@@ -420,6 +421,7 @@ void CvEconomicAI::SetUsingStrategy(EconomicAIStrategyTypes eStrategy, bool bVal
 	if(m_pabUsingStrategy[eStrategy] != bValue)
 	{
 		m_pabUsingStrategy[eStrategy] = bValue;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "ECONOMIC_STRATEGY", GetEconomicAIStrategies()->GetEntry(eStrategy)->GetType(), bValue);
 
 		if(bValue)
 		{
@@ -3202,6 +3204,7 @@ void CvEconomicAI::DoHurry()
 		CvCity* pSelectedCity = m_pPlayer->getCity(selection.m_iCityID);
 		if (pSelectedCity == NULL)
 			continue;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::ProductionEvent(pSelectedCity, "HURRY_PLAYER_CANDIDATE_CONSIDERED", selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? ORDER_CONSTRUCT : ORDER_TRAIN, selection.m_iIndex, selection.m_iDiagnosticDecisionID, "GOLD", "EVALUATED");
 
 		//Units
 		switch (selection.m_eBuildableType)
@@ -3228,8 +3231,11 @@ void CvEconomicAI::DoHurry()
 					if (MOD_BALANCE_UNIT_INVESTMENTS || pkUnitInfo->GetSpaceshipProject() != NO_PROJECT)
 					{
 						const UnitClassTypes eUnitClass = (UnitClassTypes)(pkUnitInfo->GetUnitClassType());
+						AIUnitDecisionTrace::Action traceAction;
+						if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(pSelectedCity, ORDER_TRAIN, eUnitType, YIELD_GOLD, true, selection.m_iDiagnosticDecisionID);
 						pSelectedCity->SetUnitInvestment(eUnitClass, true);
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
+						if (MOD_AI_UNIT_DECISION_LOGGING && pSelectedCity->IsUnitInvestment(eUnitClass)) traceAction.Success();
 						if (GC.getLogging() && GC.getAILogging())
 						{
 							CvString strLogString;
@@ -3244,7 +3250,7 @@ void CvEconomicAI::DoHurry()
 						iTempWeight = pSelectedCity->GetCityStrategyAI()->GetUnitProductionAI()->CheckUnitBuildSanity(eUnitType, true, iTempWeight, true);
 						if (iTempWeight > 0)
 						{
-							CvUnit* pUnit = pSelectedCity->PurchaseUnit(eUnitType, YIELD_GOLD);
+							CvUnit* pUnit = pSelectedCity->PurchaseUnit(eUnitType, YIELD_GOLD, selection.m_iDiagnosticDecisionID);
 							if (pUnit)
 							{
 								if (GC.getLogging() && GC.getAILogging())
@@ -3330,6 +3336,8 @@ void CvEconomicAI::DoHurry()
 							m_pPlayer->GetHomelandAI()->LogHomelandMessage(strLogString);
 						}
 
+						AIUnitDecisionTrace::Action traceAction;
+						if (MOD_AI_UNIT_DECISION_LOGGING) traceAction.Begin(pSelectedCity, ORDER_CONSTRUCT, eBuildingType, YIELD_GOLD, false, selection.m_iDiagnosticDecisionID);
 						//take the money...
 						m_pPlayer->GetTreasury()->ChangeGold(-iGoldCost);
 
@@ -3338,10 +3346,12 @@ void CvEconomicAI::DoHurry()
 						{
 							const BuildingClassTypes eBuildingClass = pkBuildingInfo->GetBuildingClassType();
 							pSelectedCity->SetBuildingInvestment(eBuildingClass, true);
+							if (MOD_AI_UNIT_DECISION_LOGGING && pSelectedCity->IsBuildingInvestment(eBuildingClass)) traceAction.Success();
 						}
 						else
 						{
-							pSelectedCity->CreateBuilding(eBuildingType);
+							const bool traceCreated = pSelectedCity->CreateBuilding(eBuildingType);
+							if (MOD_AI_UNIT_DECISION_LOGGING && traceCreated) traceAction.Success();
 							pSelectedCity->SetBuildingPurchaseCooldown(pkBuildingInfo->GetCooldown());
 							if (MOD_EVENTS_CITY)
 							{

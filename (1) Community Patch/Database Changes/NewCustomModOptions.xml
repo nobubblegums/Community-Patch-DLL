@@ -1160,6 +1160,14 @@
 		<!-- 				SLATED FOR DELETION							-->
 		<!-- ********************************************************** -->
 
+		<!-- Optional diagnostics; does not enable experimental Unit Production AI tweaks. -->
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING" Value="0"/>
+		<!-- Diagnostic suboptions are cached by AIUnitDecisionTrace; no gameplay feature bits. -->
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING_MAJORS_ONLY" Value="1"/>
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING_FILTERS" Value="0"/>
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING_TERMS" Value="1"/>
+		<Row Class="6" Name="AI_UNIT_DECISION_LOGGING_FLAVORS" Value="1"/>
+
 		<!-- Enables experimental Unit Production AI tweaks -->
 		<Row Class="6" Name="AI_UNIT_PRODUCTION" Value="0"/>
 

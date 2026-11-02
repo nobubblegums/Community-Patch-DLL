@@ -132,6 +132,7 @@ struct CvCityBuildable
 		, m_iTurnsToConstruct(0)
 		, m_iValue(0)
 		, m_iCityID(-1)
+		, m_iDiagnosticDecisionID(0)
 	{
 	}
 
@@ -140,6 +141,7 @@ struct CvCityBuildable
 	int m_iTurnsToConstruct;
 	int m_iValue;
 	int m_iCityID;
+	int m_iDiagnosticDecisionID; // Diagnostic return-side correlation only; never serialized or scored.
 };
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -204,7 +206,7 @@ public:
 	void PrecalcYieldStats();
 
 	// City AI methods
-	void ChooseProduction(BuildingTypes eIgnoreBldg = NO_BUILDING, UnitTypes eIgnoreUnit = NO_UNIT, bool bInterruptBuildings = false, bool bInterruptWonders = false);
+	void ChooseProduction(BuildingTypes eIgnoreBldg = NO_BUILDING, UnitTypes eIgnoreUnit = NO_UNIT, bool bInterruptBuildings = false, bool bInterruptWonders = false, const char* traceTrigger = "UNKNOWN");
 	CvCityBuildable ChooseHurry(bool bUnitOnly = false, bool bFaithPurchase = false);
 	void LogHurryMessage(CvString& strMsg);
 	void DoTurn();
@@ -217,6 +219,9 @@ public:
 private:
 
 	void ReweightByDuration(CvWeightedVector<CvCityBuildable>& options);
+
+	// Passive notification of an actual base-vector reset; no diagnostic flavor shadow.
+	void TraceFlavorReset();
 
 	// Logging functions
 	void LogFlavorChange(FlavorTypes eFlavor, int change, const char* reason, bool start);

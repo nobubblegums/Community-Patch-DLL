@@ -57,6 +57,9 @@
 // Enables Squads for VP support
 #define MOD_SQUADS													gCustomMods.isSQUADS()
 
+// Optional comprehensive unit-production diagnostics; independent of unit AI behavior.
+#define MOD_AI_UNIT_DECISION_LOGGING gCustomMods.isAI_UNIT_DECISION_LOGGING()
+
 // Enables writing gameplay statistics to a local SQLite database (stats.db) via SqliteLogger
 #define MOD_SQLITE_LOGGING											gCustomMods.isSQLITE_LOGGING()
 
@@ -1548,6 +1551,7 @@ public:
 	MOD_OPT_DECL(DIPLO_DEBUG_MODE);
 	MOD_OPT_DECL(CORE_DEBUGGING);
 	MOD_OPT_DECL(SQUADS);
+	MOD_OPT_DECL(AI_UNIT_DECISION_LOGGING);
 	MOD_OPT_DECL(SQLITE_LOGGING);
 
 	// Core Balance Changes

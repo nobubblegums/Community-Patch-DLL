@@ -23,6 +23,7 @@
 #include "CvTacticalAI.h"
 #include "CvTacticalAnalysisMap.h"
 // must be included after all other headers
+#include "AIUnitDecisionTrace.h"
 #include "LintFree.h"
 
 #include "CvEnumMapSerialization.h"
@@ -345,6 +346,11 @@ void CvCityStrategyAI::Write(FDataStream& kStream) const
 	Serialize(*this, serialVisitor);
 }
 
+void CvCityStrategyAI::TraceFlavorReset()
+{
+	AIUnitDecisionTrace::CityFlavorState(m_pCity, "BASE_RESET", "PERSONALITY", 1);
+}
+
 /// Respond to a new set of flavor values
 void CvCityStrategyAI::FlavorUpdate()
 {
@@ -366,6 +372,7 @@ void CvCityStrategyAI::FlavorUpdate()
 		m_pProjectProductionAI->AddFlavorWeights((FlavorTypes)iFlavor, iFlavorValue);
 		m_pProcessProductionAI->AddFlavorWeights((FlavorTypes)iFlavor, iFlavorValue);
 	}
+	if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceFlavorUpdateComplete(AIUnitDecisionTrace::CacheFlavorState(m_pCity));
 }
 
 FDataStream& operator>>(FDataStream& stream, CvCityStrategyAI& cityStrategyAI)
@@ -425,6 +432,7 @@ void CvCityStrategyAI::UpdateFlavorsForNewCity()
 			}
 		}
 	}
+	if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::CityFlavorState(m_pCity, "PLAYER_STRATEGY_REPLAY", "", 1);
 }
 
 /// Set special production emphasis for this city
@@ -439,6 +447,7 @@ bool CvCityStrategyAI::SetSpecialization(CitySpecializationTypes eSpecialization
 
 		// Switch
 		m_eSpecialization = eSpecialization;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::CityFlavorState(m_pCity, "SPECIALIZATION", eSpecialization == NO_CITY_SPECIALIZATION ? "NONE" : GC.getCitySpecializationInfo(eSpecialization)->GetType(), 1);
 
 		// Turn on new specialization
 		SpecializationFlavorChange(true, m_eSpecialization);
@@ -521,6 +530,7 @@ void CvCityStrategyAI::SetUsingCityStrategy(AICityStrategyTypes eStrategy, bool 
 	if(m_pabUsingCityStrategy[eStrategy] != bValue)
 	{
 		m_pabUsingCityStrategy[eStrategy] = bValue;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::CityFlavorState(m_pCity, "CITY_STRATEGY", GetAICityStrategies()->GetEntry(eStrategy)->GetType(), bValue);
 
 		if(bValue)
 		{
@@ -695,8 +705,14 @@ bool HaveSettlerInBuildables(const CvWeightedVector<CvCityBuildable>& choices)
 }
 
 /// Pick the next build for a city (unit, building or wonder)
-void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIgnoreUnit, bool bInterruptBuildings, bool bInterruptWonders)
+void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIgnoreUnit, bool bInterruptBuildings, bool bInterruptWonders, const char* traceTrigger)
 {
+	AIUnitDecisionTrace::Scope traceScope;
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+	{
+		traceScope.Begin("ChooseProduction", m_pCity->getOwner(), m_pCity->GetID());
+		AIUnitDecisionTrace::DecisionContext(traceTrigger);
+	}
 	//Let's make sure we're not getting into a weird loop.
 	if (bInterruptBuildings)
 	{
@@ -721,15 +737,18 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	
 	// Check units for operations first
 	UnitTypes eUnitForOperation = m_pCity->GetUnitForOperation();
+	if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("DEMAND_RECOMMENDATION", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_OPERATION, eUnitForOperation, 0, eUnitForOperation != NO_UNIT ? 1 : 0);
 	if(eUnitForOperation != NO_UNIT)
 	{
 		buildable.m_eBuildableType = CITY_BUILDABLE_UNIT_FOR_OPERATION;
 		buildable.m_iIndex = (int)eUnitForOperation;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 		buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForOperation, 0);
 		int iTempWeight = /*5000*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_BASE_WEIGHT);
 		int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE")) + kPlayer.GetMilitaryAI()->GetNumberOfTimesOpsBuildSkippedOver();
 		iTempWeight += iOffenseFlavor * /*250*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER);
 		iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForOperation);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_OPERATION, eUnitForOperation, iTempWeight, 0);
 		if(iTempWeight > 0)
 		{						
 			m_BuildablesPrecheck.push_back(buildable, iTempWeight);
@@ -738,14 +757,17 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	}
 	// Next units for sneak attack armies
 	UnitTypes eUnitForArmy = kPlayer.GetMilitaryAI()->GetUnitTypeForArmy(GetCity());
+	if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("DEMAND_RECOMMENDATION", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_ARMY, eUnitForArmy, 0, eUnitForArmy != NO_UNIT ? 1 : 0);
 	if(eUnitForArmy != NO_UNIT)
 	{
 		buildable.m_eBuildableType = CITY_BUILDABLE_UNIT_FOR_ARMY;
 		buildable.m_iIndex = (int)eUnitForArmy;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 		buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForArmy, 0);
 		int iTempWeight = /*750*/ GD_INT_GET(AI_CITYSTRATEGY_ARMY_UNIT_BASE_WEIGHT);
 		int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE"));
 		iTempWeight += iOffenseFlavor * /*250*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_ARMY, eUnitForArmy, iTempWeight, 0);
 		if(iTempWeight > 0)
 		{
 			buildable.m_iValue = iTempWeight;
@@ -756,6 +778,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	// Loop through adding the available units
 	for(int iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, iUnitLoop);
 		// Make sure this unit can be built now
 		if ((UnitTypes)iUnitLoop != eIgnoreUnit && m_pCity->canTrain((UnitTypes)iUnitLoop, (m_pCity->isProductionUnit() && (UnitTypes)iUnitLoop == m_pCity->getProductionUnit())))
 		{
@@ -767,8 +790,10 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 
 			buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
 			buildable.m_iIndex = iUnitLoop;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 			buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft((UnitTypes)iUnitLoop, 0);
 			int iTempWeight = m_pUnitProductionAI->GetWeight((UnitTypes)iUnitLoop);
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("BASE_WEIGHT", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT, iUnitLoop, iTempWeight, 0);
 
 			if(iTempWeight > 0)
 			{
@@ -827,8 +852,10 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 		{
 			buildable.m_eBuildableType = CITY_BUILDABLE_BUILDING;
 			buildable.m_iIndex = iBldgLoop;
+			if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 			buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eLoopBuilding, 0);
 			int iTempWeight = m_pBuildingProductionAI->GetWeight(eLoopBuilding);
+			if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceConsumeFlavorState();
 
 			// Save it for later
 			if(iTempWeight > 0)
@@ -849,10 +876,12 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 				continue;
 
 			int iTempWeight = m_pProjectProductionAI->GetWeight(eProject);
+			if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceConsumeFlavorState();
 			if(iTempWeight > 0)
 			{
 				buildable.m_eBuildableType = CITY_BUILDABLE_PROJECT;
 				buildable.m_iIndex = iProjectLoop;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eProject, 0);
 				buildable.m_iValue = iTempWeight;
 				m_BuildablesPrecheck.push_back(buildable, m_pProjectProductionAI->GetWeight(eProject));
@@ -872,6 +901,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 			if (m_pCity->canMaintain(eProcess, (m_pCity->isProductionProcess() && eProcess == m_pCity->getProductionProcess())))
 			{		
 				int iTempWeight = m_pProcessProductionAI->GetWeight((ProcessTypes)iProcessLoop);
+				if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceConsumeFlavorState();
 				CvProcessInfo* pProcess = GC.getProcessInfo(eProcess);
 				ASSERT(pProcess);
 				if (pProcess->getDefenseValue() > 0)
@@ -882,6 +912,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 				{
 					buildable.m_eBuildableType = CITY_BUILDABLE_PROCESS;
 					buildable.m_iIndex = iProcessLoop;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 					buildable.m_iTurnsToConstruct = 1;
 					buildable.m_iValue = iTempWeight;
 					m_BuildablesPrecheck.push_back(buildable, iTempWeight);
@@ -899,6 +930,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	for(int iI = 0; iI < m_BuildablesPrecheck.size(); iI++)
 	{
 		CvCityBuildable selection = m_BuildablesPrecheck.GetElement(iI);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(selection.m_eBuildableType, selection.m_iIndex);
 		switch(selection.m_eBuildableType)
 		{
 		case NOT_A_CITY_BUILDABLE:
@@ -988,7 +1020,14 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 	LogPossibleBuilds(m_Buildables,"POST");
 
 	if (m_Buildables.size() <= 0)
+	{
 		m_Buildables = m_BuildablesPrecheck;
+		if (MOD_AI_UNIT_DECISION_LOGGING)
+			for (int i=0; i<m_Buildables.size(); ++i) {
+				const CvCityBuildable item=m_Buildables.GetElement(i);
+				AIUnitDecisionTrace::Event("POST_FALLBACK","",m_pCity->getOwner(),m_pCity->GetID(),item.m_eBuildableType,item.m_iIndex,m_Buildables.GetWeight(i),item.m_iTurnsToConstruct);
+			}
+	}
 
 	bool bPushedOrderForSettler = false;
 	if (m_Buildables.size() > 0)
@@ -1018,6 +1057,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 					{
 						selection = m_Buildables.GetElement(i);
 						bContinueWithCurrentBuild = true;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("CURRENT_PRODUCTION_CONTINUED", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, m_Buildables.GetWeight(i), m_Buildables.GetWeight(0));
 					}
 					break;
 				}
@@ -1029,6 +1069,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 					{
 						selection = m_Buildables.GetElement(i);
 						bContinueWithCurrentBuild = true;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("CURRENT_PRODUCTION_CONTINUED", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, m_Buildables.GetWeight(i), m_Buildables.GetWeight(0));
 					}
 					break;
 				}
@@ -1045,6 +1086,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 						{
 							selection = m_Buildables.GetElement(i);
 							bContinueWithCurrentBuild = true;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("VICTORY_PROJECT_OVERRIDE", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, m_Buildables.GetWeight(i), m_Buildables.GetWeight(0));
 						}
 					}
 
@@ -1052,6 +1094,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 					{
 						selection = m_Buildables.GetElement(i);
 						bContinueWithCurrentBuild = true;
+						if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("CURRENT_PRODUCTION_CONTINUED", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, m_Buildables.GetWeight(i), m_Buildables.GetWeight(0));
 					}
 					break;
 				}
@@ -1081,17 +1124,20 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 			if (bTopChoiceIsDefenseProcess)
 			{
 				selection = m_Buildables.GetElement(0);
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("DEFENSE_PROCESS_OVERRIDE", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, m_Buildables.GetWeight(0), 0);
 			}
 			// otherwise, pick using weighted randomization from the top choices
 			else
 			{
-				selection = m_Buildables.ChooseAbovePercentThreshold(GC.getGame().getHandicapInfo().getCityProductionChoiceCutoffThreshold(), CvSeeder::fromRaw(0x0e36d18b).mix(m_pCity->GetID()));
+				selection = m_Buildables.ChooseAbovePercentThreshold(GC.getGame().getHandicapInfo().getCityProductionChoiceCutoffThreshold(), CvSeeder::fromRaw(0x0e36d18b).mix(m_pCity->GetID()), MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::Weighted : NULL);
 			}
 		}
 
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("SELECTION_MODE", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, (int)bContinueWithCurrentBuild, 0, "seed=0x0e36d18b.mix(CityID)");
 		bool bRush = selection.m_iTurnsToConstruct > iRushIfMoreThanXTurns;
 
 		LogCityProduction(selection, bRush);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(selection.m_eBuildableType, selection.m_iIndex);
 
 		switch(selection.m_eBuildableType)
 		{
@@ -1106,7 +1152,7 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 				if (pkUnitInfo)
 				{
 					UnitAITypes eUnitAI = pkUnitInfo->GetDefaultUnitAIType();
-					GetCity()->pushOrder(ORDER_TRAIN, eUnitType, eUnitAI, false, true, false, bRush);
+					GetCity()->pushOrder(ORDER_TRAIN, eUnitType, eUnitAI, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 					bPushedOrderForSettler = pkUnitInfo->IsFound();
 				}
 				if (selection.m_eBuildableType == CITY_BUILDABLE_UNIT_FOR_OPERATION)
@@ -1119,21 +1165,21 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 		case CITY_BUILDABLE_BUILDING:
 			{
 				BuildingTypes eBuildingType = (BuildingTypes) selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_CONSTRUCT, eBuildingType, -1, false, true, false, bRush);
+				GetCity()->pushOrder(ORDER_CONSTRUCT, eBuildingType, -1, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 				break;
 			}
 
 		case CITY_BUILDABLE_PROJECT:
 			{
 				ProjectTypes eProjectType = (ProjectTypes) selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_CREATE, eProjectType, -1, false, true, false, bRush);
+				GetCity()->pushOrder(ORDER_CREATE, eProjectType, -1, false, true, false, bRush, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0);
 				break;
 			}
 
 		case CITY_BUILDABLE_PROCESS:
 			{
 				ProcessTypes eProcessType = (ProcessTypes)selection.m_iIndex;
-				GetCity()->pushOrder(ORDER_MAINTAIN, eProcessType, -1, false, true, false, false); // ignoring rush because we can't rush a process
+				GetCity()->pushOrder(ORDER_MAINTAIN, eProcessType, -1, false, true, false, false, MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::CurrentDecision() : 0); // ignoring rush because we can't rush a process
 				break;
 			}
 		}
@@ -1149,6 +1195,12 @@ void CvCityStrategyAI::ChooseProduction(BuildingTypes eIgnoreBldg, UnitTypes eIg
 /// Pick the next build for a city (unit, building)
 CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchase)
 {
+	AIUnitDecisionTrace::Scope traceScope;
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+	{
+		traceScope.Begin("ChooseHurry", m_pCity->getOwner(), m_pCity->GetID());
+		AIUnitDecisionTrace::DecisionContext(bFaithPurchase ? "RELIGION_FAITH_UNIT_EVALUATION" : "ECONOMIC_GOLD_EVALUATION");
+	}
 	int iBldgLoop = 0;
 	int iUnitLoop = 0;
 	int iTempWeight = 0;
@@ -1172,6 +1224,8 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 	{
 		// Check units for operations first
 		eUnitForOperation = m_pCity->GetUnitForOperation();
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT_FOR_OPERATION, eUnitForOperation);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("HURRY_DEMAND", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_OPERATION, eUnitForOperation, eUnitForOperation != NO_UNIT, 0);
 		if (eUnitForOperation != NO_UNIT)
 		{
 			CvUnitEntry* pUnitEntry = GC.getUnitInfo(eUnitForOperation);
@@ -1183,11 +1237,13 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 				{
 					buildable.m_eBuildableType = CITY_BUILDABLE_UNIT_FOR_OPERATION;
 					buildable.m_iIndex = (int)eUnitForOperation;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 					buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForOperation, 0);
 					iTempWeight = /*5000*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_BASE_WEIGHT);
 					int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE")) + kPlayer.GetMilitaryAI()->GetNumberOfTimesOpsBuildSkippedOver();
 					iTempWeight += iOffenseFlavor * /*250*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER);
 					iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForOperation);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_OPERATION, eUnitForOperation, iTempWeight, 0);
 					if (iTempWeight > 0)
 					{
 						buildable.m_iValue = iTempWeight;
@@ -1199,6 +1255,8 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 		}
 		// Next units for sneak attack armies
 		eUnitForArmy = kPlayer.GetMilitaryAI()->GetUnitTypeForArmy(GetCity());
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT_FOR_ARMY, eUnitForArmy);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("HURRY_DEMAND", "t003", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_ARMY, eUnitForArmy, eUnitForArmy != NO_UNIT, 0);
 		if (eUnitForArmy != NO_UNIT)
 		{
 			CvUnitEntry* pUnitEntry = GC.getUnitInfo(eUnitForArmy);
@@ -1210,10 +1268,12 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 				{
 					buildable.m_eBuildableType = CITY_BUILDABLE_UNIT_FOR_ARMY;
 					buildable.m_iIndex = (int)eUnitForArmy;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 					buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForArmy, 0);
 					iTempWeight = /*750*/ GD_INT_GET(AI_CITYSTRATEGY_ARMY_UNIT_BASE_WEIGHT);
 					int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE"));
 					iTempWeight += iOffenseFlavor * /*250*/ GD_INT_GET(AI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER);
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("NONFLAVOR_BASE", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_UNIT_FOR_ARMY, eUnitForArmy, iTempWeight, 0);
 					if (iTempWeight > 0)
 					{
 						buildable.m_iValue = iTempWeight;
@@ -1227,6 +1287,7 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 	// Loop through adding the available units
 	for (iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 	{
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(CITY_BUILDABLE_UNIT, iUnitLoop);
 		CvUnitEntry* pUnitEntry = GC.getUnitInfo((UnitTypes)iUnitLoop);
 		if (bFaithPurchase)
 		{
@@ -1250,6 +1311,7 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 				{
 					buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
 					buildable.m_iIndex = iUnitLoop;
+					if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 					buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft((UnitTypes)iUnitLoop, 0);
 
 					iTempWeight = m_pUnitProductionAI->GetWeight((UnitTypes)iUnitLoop);
@@ -1290,9 +1352,12 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 			{
 				buildable.m_eBuildableType = CITY_BUILDABLE_BUILDING;
 				buildable.m_iIndex = iBldgLoop;
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(buildable.m_eBuildableType, buildable.m_iIndex);
 				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eLoopBuilding, 0);
 
 				iTempWeight = m_pBuildingProductionAI->GetWeight(eLoopBuilding);
+				if (MOD_AI_UNIT_DECISION_LOGGING) m_pUnitProductionAI->TraceConsumeFlavorState();
+				if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("BASE_WEIGHT", "t002", m_pCity->getOwner(), m_pCity->GetID(), CITY_BUILDABLE_BUILDING, eLoopBuilding, iTempWeight, 0);
 
 				// Save it for later
 				if (iTempWeight > 0)
@@ -1316,6 +1381,7 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 	for(int iI = 0; iI < m_BuildablesPrecheck.size(); iI++)
 	{
 		selection = m_BuildablesPrecheck.GetElement(iI);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(selection.m_eBuildableType, selection.m_iIndex);
 		switch(selection.m_eBuildableType)
 		{
 		case NOT_A_CITY_BUILDABLE:
@@ -1391,7 +1457,14 @@ CvCityBuildable CvCityStrategyAI::ChooseHurry(bool bUnitOnly, bool bFaithPurchas
 
 	if (m_Buildables.GetTotalWeight() > 0)
 	{
-		selection = m_Buildables.ChooseAbovePercentThreshold(GC.getGame().getHandicapInfo().getCityProductionChoiceCutoffThreshold(), CvSeeder::fromRaw(0xe362f42a).mix(m_pCity->GetID()));
+		selection = m_Buildables.ChooseAbovePercentThreshold(GC.getGame().getHandicapInfo().getCityProductionChoiceCutoffThreshold(), CvSeeder::fromRaw(0xe362f42a).mix(m_pCity->GetID()), MOD_AI_UNIT_DECISION_LOGGING ? AIUnitDecisionTrace::Weighted : NULL);
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event(selection.m_eBuildableType == NOT_A_CITY_BUILDABLE ? "HURRY_NO_CHOICE" : "HURRY_SELECTED", "", m_pCity->getOwner(), m_pCity->GetID(), selection.m_eBuildableType, selection.m_iIndex, selection.m_iValue, (int)bFaithPurchase);
+		if (MOD_AI_UNIT_DECISION_LOGGING) {
+			selection.m_iDiagnosticDecisionID = AIUnitDecisionTrace::CurrentDecision();
+			const CvUnitEntry* traceUnit = selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? NULL : GC.getUnitInfo((UnitTypes)selection.m_iIndex);
+			const char* traceAction = selection.m_eBuildableType==CITY_BUILDABLE_BUILDING ? (MOD_BALANCE_BUILDING_INVESTMENTS ? "BUILDING_INVESTMENT" : "BUILDING_PURCHASE") : (!bFaithPurchase && traceUnit && (MOD_BALANCE_UNIT_INVESTMENTS || traceUnit->GetSpaceshipProject()!=NO_PROJECT) ? "UNIT_INVESTMENT" : "UNIT_PURCHASE");
+			AIUnitDecisionTrace::DecisionAction(traceAction);
+		}
 		return selection;
 	}
 
@@ -1750,10 +1823,12 @@ void CvCityStrategyAI::ReweightByDuration(CvWeightedVector<CvCityBuildable>& opt
 	for(int iI = 0; iI < options.size(); iI++)
 	{
 		int iTurns = options.GetElement(iI).m_iTurnsToConstruct;
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::SetCandidate(options.GetElement(iI).m_eBuildableType, options.GetElement(iI).m_iIndex);
 
 		// Compute the new weight and change it
 		int iNewWeight = CityStrategyAIHelpers::ReweightByTurnsLeft(options.GetWeight(iI), iTurns);
 
+		if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Duration(options.GetWeight(iI), iTurns, iNewWeight);
 		options.SetWeight(iI, iNewWeight);
 	}
 }
@@ -1821,6 +1896,12 @@ void CvCityStrategyAI::LogStrategy(AICityStrategyTypes eStrategy, bool bValue)
 /// Log all potential builds
 void CvCityStrategyAI::LogPossibleHurries(const CvWeightedVector<CvCityBuildable>& builds, const char* prefix)
 {
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+		for (int i=0; i<builds.size(); ++i) {
+			const CvCityBuildable item=builds.GetElement(i);
+			AIUnitDecisionTrace::Event(prefix,"",m_pCity->getOwner(),m_pCity->GetID(),item.m_eBuildableType,item.m_iIndex,builds.GetWeight(i),item.m_iTurnsToConstruct);
+		}
+
 	if(GC.getLogging() && GC.getAILogging())
 	{
 		CvString strOutBuf;
@@ -1944,6 +2025,12 @@ void CvCityStrategyAI::LogHurryMessage(CvString& strMsg)
 
 void CvCityStrategyAI::LogPossibleBuilds(const CvWeightedVector<CvCityBuildable>& builds, const char* prefix)
 {
+	if (MOD_AI_UNIT_DECISION_LOGGING)
+		for (int i=0; i<builds.size(); ++i) {
+			const CvCityBuildable item=builds.GetElement(i);
+			AIUnitDecisionTrace::Event(prefix,"",m_pCity->getOwner(),m_pCity->GetID(),item.m_eBuildableType,item.m_iIndex,builds.GetWeight(i),item.m_iTurnsToConstruct);
+		}
+
 	if(GC.getLogging() && GC.getAILogging())
 	{
 		CvString strOutBuf;
@@ -2041,6 +2128,7 @@ void CvCityStrategyAI::LogPossibleBuilds(const CvWeightedVector<CvCityBuildable>
 /// Log the chosen item to build
 void CvCityStrategyAI::LogCityProduction(CvCityBuildable buildable, bool bRush)
 {
+	if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("SELECTED", "", m_pCity->getOwner(), m_pCity->GetID(), buildable.m_eBuildableType, buildable.m_iIndex, buildable.m_iValue, (int)bRush);
 	if(GC.getLogging() && GC.getAILogging())
 	{
 		CvString strOutBuf;
@@ -2127,6 +2215,7 @@ void CvCityStrategyAI::LogCityProduction(CvCityBuildable buildable, bool bRush)
 
 void CvCityStrategyAI::LogInvalidItem(CvCityBuildable buildable, int iVal)
 {
+	if (MOD_AI_UNIT_DECISION_LOGGING) AIUnitDecisionTrace::Event("INVALID", "", m_pCity->getOwner(), m_pCity->GetID(), buildable.m_eBuildableType, buildable.m_iIndex, iVal, 0);
 	if (GC.getLogging() && GC.getAILogging())
 	{
 		CvString strOutBuf;

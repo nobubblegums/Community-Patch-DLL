@@ -26,7 +26,7 @@ public:
 	void AI_reset();
 
 	void AI_doTurn();
-	void AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings = false);
+	void AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings = false, const char* traceTrigger = "UNKNOWN");
 	bool AI_isChooseProductionDirty();
 	void AI_setChooseProductionDirty(bool bNewValue);
 

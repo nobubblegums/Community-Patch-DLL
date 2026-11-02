@@ -71,7 +71,7 @@ void CvCityAI::AI_doTurn()
 {
 }
 
-void CvCityAI::AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings)
+void CvCityAI::AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildings, const char* traceTrigger)
 {
 	VALIDATE_OBJECT();
 	CvPlayerAI& kOwner = GET_PLAYER(getOwner());
@@ -161,7 +161,7 @@ void CvCityAI::AI_chooseProduction(bool bInterruptWonders, bool bInterruptBuildi
 	}
 	else
 	{
-		m_pCityStrategyAI->ChooseProduction(NO_BUILDING, NO_UNIT, bInterruptBuildings, bInterruptWonders);
+		m_pCityStrategyAI->ChooseProduction(NO_BUILDING, NO_UNIT, bInterruptBuildings, bInterruptWonders, traceTrigger);
 		AI_setChooseProductionDirty(false);
 	}
 

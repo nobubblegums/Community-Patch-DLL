@@ -7,6 +7,7 @@
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
 #include "CvFlavorManager.h"
+#include "AIUnitDecisionTrace.h"
 #include "CvMinorCivAI.h"
 #include "CvEnumMapSerialization.h"
 
@@ -60,6 +61,7 @@ void CvFlavorRecipient::SetFlavors(const CvEnumMap<FlavorTypes, int>& piUpdatedF
 		m_piLatestFlavorValues[iI] = piUpdatedFlavorValues[iI];
 	}
 
+	if (MOD_AI_UNIT_DECISION_LOGGING) TraceFlavorReset();
 	FlavorUpdate();
 }
 
@@ -368,6 +370,13 @@ void CvFlavorManager::AdjustWeightsForMap()
 		m_piPersonalityFlavor[iGrowthIndex] -= iAdjust;
 		if (m_piPersonalityFlavor[iGrowthIndex] < iMin)
 			m_piPersonalityFlavor[iGrowthIndex] = iMin;
+
+		// A preplaced city may already have observed the pre-map personality.
+		if (MOD_AI_UNIT_DECISION_LOGGING)
+		{
+			AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "BASE_ADJUSTMENT", GC.getFlavorTypes((FlavorTypes)iExpansionIndex).c_str(), m_piPersonalityFlavor[iExpansionIndex]);
+			AIUnitDecisionTrace::PlayerFlavorState(m_pPlayer->GetID(), "BASE_ADJUSTMENT", GC.getFlavorTypes((FlavorTypes)iGrowthIndex).c_str(), m_piPersonalityFlavor[iGrowthIndex]);
+		}
 
 		// Save these off as our core personality and broadcast updates
 		ResetToBasePersonality();
