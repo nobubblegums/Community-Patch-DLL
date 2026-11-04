@@ -111,6 +111,7 @@ local function UpdateCityIndicators(pCity, instance)
     end
 
     instance.CityStatus:SetText(table.concat(icons, ""));
+    instance.CityStatus:SetSizeX(math.min(90, #icons * 18));
     instance.CityStatus:SetToolTipString(table.concat(descriptions, "[NEWLINE]"));
 
     local religion = GameInfo.Religions[pCity:GetReligiousMajority()];
@@ -123,6 +124,16 @@ local function UpdateCityIndicators(pCity, instance)
     end
 end
 
+local g_EconomicColumns = {
+    { "Food", "SortFood" },
+    { "Gold", "SortGold" },
+    { "Science", "SortResearch" },
+    { "Culture", "SortCulture" },
+    { "Faith", "SortFaith" },
+    { "Defense", "SortStrength" },
+    { "Production", "SortProduction" },
+};
+
 function UpdateDisplay()
     UpdateGPT();
     
@@ -134,6 +145,7 @@ function UpdateDisplay()
     
     m_SortTable = {};
 	pediaSearchStrings = {};
+    local cityRows = {};
 
     Controls.MainStack:DestroyAllChildren();
       
@@ -151,7 +163,7 @@ function UpdateDisplay()
         ProductionDetails( pCity, instance );
 
 		sortEntry.CityName = pCity:GetName();
-        TruncateString(instance.CityName, 160, sortEntry.CityName);
+        TruncateString(instance.CityName, 145, sortEntry.CityName);
         instance.CityName:SetToolTipString(sortEntry.CityName);
         
         if(pCity:IsCapital())then
@@ -167,7 +179,9 @@ function UpdateDisplay()
 			instance.IconCapital:SetHide(true);
 		end
         
-    	        UpdateCityIndicators(pCity, instance);
+        UpdateCityIndicators(pCity, instance);
+        instance.CityInfoStack:CalculateSize();
+        instance.CityInfoStack:ReprocessAnchoring();
 
         local pct = 1 - (pCity:GetDamage() / pCity:GetMaxHitPoints());
     	if( pct ~= 1 ) then
@@ -254,8 +268,37 @@ function UpdateDisplay()
 			instance.Faith:SetText( math.floor(sortEntry.Faith) );
 			instance.FaithBox:SetHide(false);   
         end
+        cityRows[#cityRows + 1] = { instance = instance, values = sortEntry };
     end
     
+    -- Size columns from their largest displayed integers. Match headers and city rows.
+    local totalWidth = 310 + 82 + 96;
+    for _, column in ipairs(g_EconomicColumns) do
+        local field, header = column[1], column[2];
+        local maxValue = 0;
+        for _, row in ipairs(cityRows) do
+            local value = row.values[field];
+            if (value) then
+                maxValue = math.max(maxValue, math.abs(math.floor(value)));
+            end
+        end
+        local width = maxValue >= 10000 and 72 or maxValue >= 1000 and 64 or maxValue >= 100 and 56 or 48;
+        totalWidth = totalWidth + width;
+        Controls[header]:SetSizeX(width);
+        for _, row in ipairs(cityRows) do
+            row.instance[field .. "Box"]:SetSizeX(width);
+        end
+    end
+
+    for _, row in ipairs(cityRows) do
+        row.instance.Root:SetSizeX(totalWidth);
+        row.instance.RowDivider:SetSizeX(totalWidth);
+        row.instance.CityRowStack:CalculateSize();
+        row.instance.CityRowStack:ReprocessAnchoring();
+    end
+    Controls.ColumnHeaderStack:CalculateSize();
+    Controls.ColumnHeaderStack:ReprocessAnchoring();
+
     Controls.MainStack:CalculateSize();
     Controls.MainStack:ReprocessAnchoring();
     Controls.MainScroll:CalculateInternalSize();

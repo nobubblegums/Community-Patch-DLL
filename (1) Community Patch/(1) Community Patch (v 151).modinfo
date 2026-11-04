@@ -455,8 +455,8 @@
     <File md5="30184A5EA67A61EEA1E0ED661B0DFCDF" import="1">Core Files/Overrides/DiploTrade.xml</File>
     <File md5="B6548BC0A0910B210BC181F1A960E392" import="1">Core Files/Overrides/DiscussionDialog.lua</File>
     <File md5="D708ADD4055DD571EDBDC2588DF0DC0E" import="1">Core Files/Overrides/DiscussionDialog.xml</File>
-    <File md5="C71D2736CBC5B81477FE5E99681363FC" import="1">Core Files/Overrides/EconomicGeneralInfo.lua</File>
-    <File md5="ACC82EB8486575C3399696C906838F3F" import="1">Core Files/Overrides/EconomicGeneralInfo.xml</File>
+    <File md5="D999CDEF432A79CFC948F67B8ED1D5D3" import="1">Core Files/Overrides/EconomicGeneralInfo.lua</File>
+    <File md5="DB406BD08F8E787B2A89CA0AE9673A36" import="1">Core Files/Overrides/EconomicGeneralInfo.xml</File>
     <File md5="BFF379537619DF65E99DFA4A29AA32B8" import="1">Core Files/Overrides/EconomicOverview.xml</File>
     <File md5="B4BA6BDBBF884DCBA10866F8CB25073C" import="1">Core Files/Overrides/EnemyUnitPanel.lua</File>
     <File md5="77C539014E863414A8F59B62E2CFB7BB" import="1">Core Files/Overrides/EnemyUnitPanel.xml</File>
