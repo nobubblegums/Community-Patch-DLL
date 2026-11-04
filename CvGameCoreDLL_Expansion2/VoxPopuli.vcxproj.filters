@@ -24,6 +24,7 @@
     <ClCompile Include="CvCitySpecializationAI.cpp" />
     <ClCompile Include="CvCityStrategyAI.cpp" />
     <ClCompile Include="CvContractClasses.cpp" />
+    <ClCompile Include="CvConnectionService.cpp" />
     <ClCompile Include="CvCorporationClasses.cpp" />
     <ClCompile Include="CvCultureClasses.cpp" />
     <ClCompile Include="CvDangerPlots.cpp" />
@@ -337,6 +338,7 @@
     <ClInclude Include="CvCitySpecializationAI.h" />
     <ClInclude Include="CvCityStrategyAI.h" />
     <ClInclude Include="CvContractClasses.h" />
+    <ClInclude Include="CvConnectionService.h" />
     <ClInclude Include="CvCorporationClasses.h" />
     <ClInclude Include="CvCultureClasses.h" />
     <ClInclude Include="CvDangerPlots.h" />

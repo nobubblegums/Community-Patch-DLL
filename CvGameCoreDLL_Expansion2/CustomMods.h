@@ -1092,6 +1092,9 @@
 // Enables support for JFD's Mods
 #define MOD_BALANCE_CORE_JFD										gCustomMods.isBALANCE_CORE_JFD()
 
+// Enables the optional Vox Deorum raw Lua IPC channel
+#define MOD_IPC_CHANNEL											gCustomMods.isIPC_CHANNEL()
+
 
 // Comment out this line to switch off all custom mod logging
 #define CUSTOMLOGDEBUG "CustomMods.log"
@@ -1854,6 +1857,7 @@ public:
 	MOD_OPT_DECL(NOT_FOR_SALE);
 	MOD_OPT_DECL(ROUTE_PLANNER);
 	MOD_OPT_DECL(BALANCE_CORE_JFD);
+	MOD_OPT_DECL(IPC_CHANNEL);
 
 protected:
 	bool m_bInit;
