@@ -67,14 +67,14 @@ end
 -------------------------------------------------------------------------------
 
 -- Display city-banner status indicators beside the city name.
-local g_CityFocusIcons = {
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FOOD] = "[ICON_FOOD]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_PRODUCTION] = "[ICON_PRODUCTION]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GOLD] = "[ICON_GOLD]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_SCIENCE] = "[ICON_RESEARCH]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_CULTURE] = "[ICON_CULTURE]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GREAT_PEOPLE] = "[ICON_GREAT_PEOPLE]",
-    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FAITH] = "[ICON_PEACE]"
+local g_CityFocus = {
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FOOD] = { "[ICON_FOOD]", "TXT_KEY_CITYVIEW_FOCUS_FOOD_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_PRODUCTION] = { "[ICON_PRODUCTION]", "TXT_KEY_CITYVIEW_FOCUS_PROD_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GOLD] = { "[ICON_GOLD]", "TXT_KEY_CITYVIEW_FOCUS_GOLD_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_SCIENCE] = { "[ICON_RESEARCH]", "TXT_KEY_CITYVIEW_FOCUS_RESEARCH_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_CULTURE] = { "[ICON_CULTURE]", "TXT_KEY_CITYVIEW_FOCUS_CULTURE_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GREAT_PEOPLE] = { "[ICON_GREAT_PEOPLE]", "TXT_KEY_CITYVIEW_FOCUS_GREAT_PERSON_TEXT" };
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FAITH] = { "[ICON_PEACE]", "TXT_KEY_CITYVIEW_FOCUS_FAITH_TEXT" };
 };
 
 local function UpdateCityIndicators(pCity, instance)
@@ -85,21 +85,12 @@ local function UpdateCityIndicators(pCity, instance)
         table.insert(descriptions, description);
     end
 
-    local focus = g_CityFocusIcons[pCity:GetFocusType()];
+    local focus = g_CityFocus[pCity:GetFocusType()];
     if (focus) then
-        local focusNames = {
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FOOD] = "Food",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_PRODUCTION] = "Production",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GOLD] = "Gold",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_SCIENCE] = "Science",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_CULTURE] = "Culture",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GREAT_PEOPLE] = "Great People",
-            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FAITH] = "Faith"
-        };
-        Add(focus, "City Focus: " .. focusNames[pCity:GetFocusType()]);
+        Add(focus[1], Locale.ConvertTextKey(focus[2]));
     end
     if (pCity:IsForcedAvoidGrowth()) then
-        Add("[ICON_LOCKED]", "Avoid Growth");
+        Add("[ICON_LOCKED]", Locale.ConvertTextKey("TXT_KEY_CITYVIEW_FOCUS_AVOID_GROWTH_TEXT"));
     end
     if (pCity:IsResistance()) then
         Add("[ICON_RESISTANCE]", Locale.ConvertTextKey("TXT_KEY_CITY_RESISTANCE", pCity:GetResistanceTurns()));
@@ -111,11 +102,11 @@ local function UpdateCityIndicators(pCity, instance)
         Add("[ICON_BLOCKADED]", Locale.ConvertTextKey("TXT_KEY_CITY_BLOCKADED"));
     end
     if (pCity:GetWeLoveTheKingDayCounter() > 0) then
-        Add("[ICON_HAPPINESS_1]", "We Love the King Day: " .. pCity:GetWeLoveTheKingDayCounter() .. " turns");
+        Add("[ICON_HAPPINESS_1]", Locale.ConvertTextKey("TXT_KEY_CITYVIEW_WLTKD_COUNTER", pCity:GetWeLoveTheKingDayCounter()));
     else
         local resource = GameInfo.Resources[pCity:GetResourceDemanded(true)];
         if (resource) then
-            Add(resource.IconString, "Luxury demanded: " .. Locale.ConvertTextKey(resource.Description));
+            Add(resource.IconString, Locale.ConvertTextKey("TXT_KEY_CITYVIEW_RESOURCE_DEMANDED", Locale.ConvertTextKey(resource.Description)));
         end
     end
 
@@ -160,7 +151,7 @@ function UpdateDisplay()
         ProductionDetails( pCity, instance );
 
 		sortEntry.CityName = pCity:GetName();
-        TruncateString(instance.CityName, 116, sortEntry.CityName);
+        TruncateString(instance.CityName, 160, sortEntry.CityName);
         instance.CityName:SetToolTipString(sortEntry.CityName);
         
         if(pCity:IsCapital())then
@@ -644,12 +635,10 @@ end
 if(Game.IsOption(GameOptionTypes.GAMEOPTION_NO_RELIGION)) then
 	Controls.SortFaith:SetDisabled(true);
 	Controls.SortFaith:SetHide(false);
-	Controls.ReligionIncome:SetHide(true);
 else
 	Controls.SortFaith:RegisterCallback(Mouse.eLClick, OnSort);
 	Controls.SortFaith:SetVoid1(eFaith);
 	Controls.SortFaith:SetHide(false);
-	Controls.ReligionIncome:SetHide(false);
 end
 
 -------------------------------------------------------------------------------
