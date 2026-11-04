@@ -3,6 +3,7 @@
 -------------------------------------------------
 include( "IconSupport" );
 include( "InstanceManager" );
+include( "SupportFunctions" );
 include ("CPK.lua")
 
 local defaultErrorTextureSheet = "CityBannerProductionImage.dds";
@@ -64,6 +65,73 @@ end
 	
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
+
+-- Display city-banner status indicators beside the city name.
+local g_CityFocusIcons = {
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FOOD] = "[ICON_FOOD]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_PRODUCTION] = "[ICON_PRODUCTION]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GOLD] = "[ICON_GOLD]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_SCIENCE] = "[ICON_RESEARCH]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_CULTURE] = "[ICON_CULTURE]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GREAT_PEOPLE] = "[ICON_GREAT_PEOPLE]",
+    [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FAITH] = "[ICON_PEACE]"
+};
+
+local function UpdateCityIndicators(pCity, instance)
+    local icons = {};
+    local descriptions = {};
+    local function Add(icon, description)
+        table.insert(icons, icon);
+        table.insert(descriptions, description);
+    end
+
+    local focus = g_CityFocusIcons[pCity:GetFocusType()];
+    if (focus) then
+        local focusNames = {
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FOOD] = "Food",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_PRODUCTION] = "Production",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GOLD] = "Gold",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_SCIENCE] = "Science",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_CULTURE] = "Culture",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_GREAT_PEOPLE] = "Great People",
+            [CityAIFocusTypes.CITY_AI_FOCUS_TYPE_FAITH] = "Faith"
+        };
+        Add(focus, "City Focus: " .. focusNames[pCity:GetFocusType()]);
+    end
+    if (pCity:IsForcedAvoidGrowth()) then
+        Add("[ICON_LOCKED]", "Avoid Growth");
+    end
+    if (pCity:IsResistance()) then
+        Add("[ICON_RESISTANCE]", Locale.ConvertTextKey("TXT_KEY_CITY_RESISTANCE", pCity:GetResistanceTurns()));
+    end
+    if (pCity:IsRazing()) then
+        Add("[ICON_RAZING]", Locale.ConvertTextKey("TXT_KEY_CITY_BURNING", pCity:GetRazingTurns()));
+    end
+    if (pCity:IsBlockaded()) then
+        Add("[ICON_BLOCKADED]", Locale.ConvertTextKey("TXT_KEY_CITY_BLOCKADED"));
+    end
+    if (pCity:GetWeLoveTheKingDayCounter() > 0) then
+        Add("[ICON_HAPPINESS_1]", "We Love the King Day: " .. pCity:GetWeLoveTheKingDayCounter() .. " turns");
+    else
+        local resource = GameInfo.Resources[pCity:GetResourceDemanded(true)];
+        if (resource) then
+            Add(resource.IconString, "Luxury demanded: " .. Locale.ConvertTextKey(resource.Description));
+        end
+    end
+
+    instance.CityStatus:SetText(table.concat(icons, ""));
+    instance.CityStatus:SetToolTipString(table.concat(descriptions, "[NEWLINE]"));
+
+    local religion = GameInfo.Religions[pCity:GetReligiousMajority()];
+    if (religion) then
+        IconHookup(religion.PortraitIndex, 32, religion.IconAtlas, instance.ReligionIcon);
+        instance.ReligionIcon:SetToolTipString(Locale.ConvertTextKey(religion.Description));
+        instance.ReligionIcon:SetHide(false);
+    else
+        instance.ReligionIcon:SetHide(true);
+    end
+end
+
 function UpdateDisplay()
     UpdateGPT();
     
@@ -92,7 +160,8 @@ function UpdateDisplay()
         ProductionDetails( pCity, instance );
 
 		sortEntry.CityName = pCity:GetName();
-        instance.CityName:SetText( sortEntry.CityName );
+        TruncateString(instance.CityName, 116, sortEntry.CityName);
+        instance.CityName:SetToolTipString(sortEntry.CityName);
         
         if(pCity:IsCapital())then
 			instance.IconCapital:SetText("[ICON_CAPITAL]");
@@ -107,7 +176,9 @@ function UpdateDisplay()
 			instance.IconCapital:SetHide(true);
 		end
         
-    	local pct = 1 - (pCity:GetDamage() / pCity:GetMaxHitPoints());
+    	        UpdateCityIndicators(pCity, instance);
+
+        local pct = 1 - (pCity:GetDamage() / pCity:GetMaxHitPoints());
     	if( pct ~= 1 ) then
     	
             if pct > 0.66 then
@@ -163,31 +234,33 @@ function UpdateDisplay()
 		end
 		
 		sortEntry.Food = pCity:GetYieldRateTimes100(YieldTypes.YIELD_FOOD) / 100;
-        instance.Food:SetText( sortEntry.Food );
+        instance.Food:SetText( math.floor(sortEntry.Food) );
        
 		sortEntry.Production = pCity:GetYieldRateTimes100( YieldTypes.YIELD_PRODUCTION ) / 100;
-        instance.Production:SetText( sortEntry.Production );
+        instance.Production:SetText( math.floor(sortEntry.Production) );
         
         
         if(Game.IsOption(GameOptionTypes.GAMEOPTION_NO_SCIENCE)) then
-			instance.ScienceBox:SetHide(true);
+			instance.Science:SetText("-");
+            instance.ScienceBox:SetHide(false);
         else
 			sortEntry.Science = pCity:GetYieldRateTimes100( YieldTypes.YIELD_SCIENCE ) / 100;
-			instance.Science:SetText( sortEntry.Science );
+			instance.Science:SetText( math.floor(sortEntry.Science) );
 			instance.ScienceBox:SetHide(false);
         end
         
         sortEntry.Gold = pCity:GetYieldRateTimes100( YieldTypes.YIELD_GOLD ) / 100;
-        instance.Gold:SetText( sortEntry.Gold );
+        instance.Gold:SetText( math.floor(sortEntry.Gold) );
         
         sortEntry.Culture = pCity:GetYieldRateTimes100(YieldTypes.YIELD_CULTURE) / 100;
-        instance.Culture:SetText( sortEntry.Culture );
+        instance.Culture:SetText( math.floor(sortEntry.Culture) );
         
         if(Game.IsOption(GameOptionTypes.GAMEOPTION_NO_RELIGION)) then
-			instance.FaithBox:SetHide(true);
+			instance.Faith:SetText("-");
+            instance.FaithBox:SetHide(false);
         else
 			sortEntry.Faith = pCity:GetYieldRateTimes100(YieldTypes.YIELD_FAITH) / 100;
-			instance.Faith:SetText(sortEntry.Faith);
+			instance.Faith:SetText( math.floor(sortEntry.Faith) );
 			instance.FaithBox:SetHide(false);   
         end
     end
@@ -558,7 +631,8 @@ Controls.SortGold:SetVoid1( eGold );
 Controls.SortCulture:SetVoid1( eCulture );
 
 if(Game.IsOption(GameOptionTypes.GAMEOPTION_NO_SCIENCE)) then
-	Controls.SortResearch:SetHide(true);
+	Controls.SortResearch:SetDisabled(true);
+	Controls.SortResearch:SetHide(false);
 	Controls.ScienceLost:SetHide(true);
 else
 	Controls.SortResearch:RegisterCallback(Mouse.eLClick, OnSort);
@@ -568,7 +642,8 @@ else
 end
 
 if(Game.IsOption(GameOptionTypes.GAMEOPTION_NO_RELIGION)) then
-	Controls.SortFaith:SetHide(true);
+	Controls.SortFaith:SetDisabled(true);
+	Controls.SortFaith:SetHide(false);
 	Controls.ReligionIncome:SetHide(true);
 else
 	Controls.SortFaith:RegisterCallback(Mouse.eLClick, OnSort);

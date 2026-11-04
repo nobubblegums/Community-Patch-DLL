@@ -1,86 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Context Font="TwCenMT20" FontStyle="Shadow" ColorSet="Beige_Black_Alpha">
 	<!-- Main Container -->
-	<Box Offset="-32,49" Anchor="C,C" Size="900,533" Color="255.255.200.0">
+	<Box Offset="0,49" Anchor="C,C" Size="1180,533" Color="255.255.200.0">
 		<!-- Column Headers -->
 		<Stack Anchor="L,T" StackGrowth="Right" Offset="0,0" Padding="0">
-			<Box Anchor="L,C" Color="White,0" Size="240,24">
-				<Label Anchor="C,C" String="TXT_KEY_EO_GPT"/>
-			</Box>
-
-			<Button ID="SortPopulation" Anchor="L,C" Size="48,24"  Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_POPULATION" >
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_CITIZEN]"/>
+			<Box Anchor="L,C" Color="White,0" Size="230,24"><Label Anchor="C,C" String="TXT_KEY_EO_GPT"/></Box>
+			<Button ID="SortCityName" Anchor="L,C" Size="310,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_NAME">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="310,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="310,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="L,C" Offset="8,-1" Font="TwCenMT18" String="TXT_KEY_PRODPANEL_CITY_NAME"/>
 			</Button>
-			<Button ID="SortCityName" Anchor="L,C" Size="240,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_NAME">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="260,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="260,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0.-1" Font="TwCenMT18" String="TXT_KEY_PRODPANEL_CITY_NAME"/>
+			<Button ID="SortPopulation" Anchor="L,C" Size="64,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_POPULATION">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="64,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="64,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_CITIZEN]"/>
 			</Button>
-<!-- COMMUNITY PATCH -->
-			<Button ID="SortStrength" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_STRENGTH">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_HAPPINESS_3]"/>
+			<Button ID="SortFood" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_FOOD">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_FOOD]"/>
 			</Button>
-<!-- END -->
-			<Button ID="SortFood" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_FOOD">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_FOOD]"/>
+			<Button ID="SortGold" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_GOLD">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_GOLD]"/>
 			</Button>
-			<Button ID="SortResearch" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_RESEARCH">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_RESEARCH]"/>
+			<Button ID="SortResearch" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_RESEARCH">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_RESEARCH]"/>
 			</Button>
-			<Button ID="SortGold" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_GOLD">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_GOLD]"/>
+			<Button ID="SortCulture" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_CULTURE">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_CULTURE]"/>
 			</Button>
-			<Button ID="SortCulture" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_CULTURE">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_CULTURE]"/>
+			<Button ID="SortFaith" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_FAITH">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_PEACE]"/>
 			</Button>
-			<Button ID="SortFaith" Anchor="L,C" Size="48,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_FAITH">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="68,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="68,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_PEACE]"/>
+			<Button ID="SortLocalHappiness" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="Local Happiness">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_HAPPINESS_1]"/>
 			</Button>
-			<Button ID="SortProduction" Anchor="L,C" Size="110,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_PRODUCTION">
-				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Offset="0,0" Size="110,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Size="110,30" Anchor="C,C" Offset="0,0" Padding="0,0" Style="Grid9FrameTurnsHL"/>
-					</AlphaAnim>
-				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" String="[ICON_PRODUCTION]"/>
+			<Button ID="SortUnhappiness" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="Local Unhappiness">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_HAPPINESS_3]"/>
+			</Button>
+			<Button ID="SortProduction" Anchor="L,C" Size="124,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_PRODUCTION">
+				<ShowOnMouseOver><AlphaAnim Anchor="C,C" Size="124,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1"><Grid Anchor="C,C" Size="124,30" Style="Grid9FrameTurnsHL"/></AlphaAnim></ShowOnMouseOver>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_PRODUCTION]"/>
 			</Button>
 		</Stack>
 		<!-- Gold Per Turn Information -->
@@ -179,11 +142,11 @@
 				</Box>
 			</Stack>
 		</ScrollPanel>
-		<ScrollPanel Anchor="L,T" Offset="245,28" Size="718,440" Vertical="1" AutoScrollBar="1" ID="MainScroll">
+		<ScrollPanel Anchor="L,T" Offset="230,28" Size="938,440" Vertical="1" AutoScrollBar="1" ID="MainScroll">
 			<ScrollBar Offset="0,18" Style="VertSlider" Anchor="R,T" Length="402" ID="ScrollBar"/>
 			<UpButton Offset="0,0" Style="ScrollBarUp" Anchor="R,T" ID="UpButton"/>
 			<DownButton Offset="0,420" Style="ScrollBarDown" Anchor="R,T" ID="DownButton"/>
-			<Stack Anchor="L,T" Size="784,440" StackGrowth="Bottom" Padding="0" ID="MainStack">
+			<Stack Anchor="L,T" Size="918,440" StackGrowth="Bottom" Padding="0" ID="MainStack">
 			</Stack>
 		</ScrollPanel>
 	</Box>
@@ -197,73 +160,26 @@
 	</Instance>
 	<!--=======================================================================================================================-->
 	<!--=======================================================================================================================-->
-	<Instance Name="CityInstance">
-		<Box ID="Root" Offset="0,0" Anchor="L,T" Size="690,34" Color="255,255,255,0">
-			<Stack Anchor="L,C" StackGrowth="Right" Offset="0,0" Padding="0">
-				<Box Anchor="C,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<!-- GrowthMeter  -->
-					<Grid Anchor="L,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="-6,0" String="14" Color0="Beige.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Population"/>
-					<!-- GrowthMeter CityBannerGrowthBackground -->
-					<Box Anchor="R,C" Offset="4,0" Size="6,30" Color="0,0,0,255" Hidden="0" ID="GrowthBox">
-						<Bar Anchor="C,B" Offset="0,0" Size="4,30" FGColor="Food,128" Hidden="0" ID="GrowthBarShadow" Direction="Up"/>
-						<Bar Anchor="C,B" Offset="0,0" Size="4,30" FGColor="Food,255" Hidden="0" ID="GrowthBar" Direction="Up"/>
-						<Box Anchor="L,C" Offset="0,0" Size="3,30" Color="0,0,0,64" Hidden="0"/>
-						<Box Anchor="R,C" Offset="1,0" Size="1,30" Color="255,255,0,64" Hidden="0"/>
-						<Label Anchor="R,B" AnchorSide="O.I" Offset="1,2" Color0="Food,255" Color1="0,0,0,200" Font="TwCenMT14" FontStyle="Stroke" ID="CityGrowth" Hidden="0"/>
-					</Box>
+	<Instance Name="CityInstance"><Box ID="Root" Anchor="L,T" Size="918,34" Color="255,255,255,0"><Stack Anchor="L,C" StackGrowth="Right" Offset="0,0" Padding="0">
+				<Box Anchor="L,C" Size="310,34" Color="White,0">
+					<Box ID="HealthBarBox" Anchor="C,B" Offset="-50,2" Size="130,5" Color="Black,256" Hidden="1"><Bar ID="HealthBar" Anchor="C,C" Size="128,3" Direction="Right" FGColor="Green,255"/></Box>
+					<Label ID="CityName" Anchor="L,C" Offset="7,-4" Size="118,24" Font="TwCenMT18" FontStyle="Shadow" ColorSet="Beige_Black_Alpha"/>
+					<Label ID="IconCapital" Anchor="L,C" Offset="132,0" Font="TwCenMT18" String="[ICON_CAPITAL]" Hidden="1"/>
+					<Label ID="CityStatus" Anchor="L,C" Offset="150,0" Size="126,26" Font="TwCenMT18" FontStyle="Shadow"/>
+					<Image ID="ReligionIcon" Anchor="R,C" Size="32,32" Hidden="1"/>
 				</Box>
-				<Box Anchor="L,C" Offset="0,0" Color="Black.0" Size="242,34">
-					<!-- HealthBar -->
-					<Box Anchor="C,B" Offset="0,2" Size="140,5" Color="Black,256" Hidden="0" ID="HealthBarBox">
-						<Bar Anchor="C,C" Offset="0,0" Size="138,3" Direction="Right" FGColor="Green,255" Hidden="0" ID="HealthBar"/>
-					</Box>
-					<Label Anchor="C,C" Offset="0,-4" String="City Name" ColorSet="Beige_Black_Alpha" Font="TwCenMT20" FontStyle="Shadow" ID="CityName">
-						<Label Anchor="L,C" Offset="3,0" AnchorSide="O.I" String="[ICON_CAPITAL]" ID="IconCapital" Hidden="0"/>
-					</Label>
+				<Box Anchor="L,C" Size="64,34" Color="White,0">
+					<Label ID="Population" Anchor="C,C" Offset="-8,0" Font="TwCenMT20" FontStyle="Stroke" Color0="Beige.255" Color1="Black.255"/>
+					<Box ID="GrowthBox" Anchor="R,C" Offset="2,0" Size="6,30" Color="0,0,0,255"><Bar ID="GrowthBarShadow" Anchor="C,B" Size="4,30" FGColor="Food,128" Direction="Up"/><Bar ID="GrowthBar" Anchor="C,B" Size="4,30" FGColor="Food,255" Direction="Up"/><Label ID="CityGrowth" Anchor="R,B" AnchorSide="O.I" Offset="1,2" Font="TwCenMT14" FontStyle="Stroke" Color0="Food,255" Color1="0,0,0,200"/></Box>
 				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="00" Color0="Beige.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Defense"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="000" Color0="Food.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Food"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34" ID="ScienceBox">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="+89" Color0="Science.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Science"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="+2" Color0="Gold.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Gold"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="+2" Color0="Culture.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Culture"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34" ID="FaithBox">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="+2" Color0="White.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Faith"/>
-				</Box>
-				<Box Anchor="L,C" Color="255.255.255.0" Offset="0,0" Size="48,34">
-					<Grid Anchor="C,C" Size="54,28" Offset="0,0" Padding="0,0" Style="Grid9Frame27" Hidden="1"/>
-					<Label Anchor="C,C" Offset="0,0" String="+22" Color0="Production.255" Color1="Black.255" Font="TwCenMT20" FontStyle="Stroke" ID="Production"/>
-				</Box>
-				<Button Anchor="L,C" Color="255.255.255.0" Offset="20,0" Size="48,34" ID="ProdButton">
-					<Image Anchor="C,C" Offset="2,0" Texture="WonderAtlas360.dds" Size="45.45" Hidden="0" ID="ProdImage">
-						<!-- ProductionMeter  -->
-						<Box Anchor="L,C" Offset="-22,0" Size="6,30" Color="0,0,0,255" Hidden="0">
-							<Bar Anchor="C,B" Offset="0,0" Size="4,30" FGColor="Production,128" Hidden="0" ID="ProductionBarShadow" Direction="Up"/>
-							<Bar Anchor="C,B" Offset="0,0" Size="4,30" FGColor="Production,255" Hidden="0" ID="ProductionBar" Direction="Up"/>
-							<Box Anchor="L,C" Offset="0,0" Size="3,30" Color="0,0,0,64" Hidden="0"/>
-							<Box Anchor="R,C" Offset="1,0" Size="1,30" Color="255,255,0,64" Hidden="0"/>
-							<Label Anchor="R,B" AnchorSide="O.I" Offset="1,2" Color0="Production,255" Color1="0,0,0,200" Font="TwCenMT14" FontStyle="Stroke" ID="BuildGrowth" Hidden="0"/>
-						</Box>
-					</Image>
-				</Button>
-			</Stack>
-			<Image Anchor="C,B" Offset="0,0" TextureOffset="110.0" Texture="bar900x2.dds" Size="680.1"/>
-		</Box>
-	</Instance>
+				<Box Anchor="L,C" Size="60,34" Color="White,0"><Label ID="Food" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Food.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0"><Label ID="Gold" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Gold.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0" ID="ScienceBox"><Label ID="Science" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Science.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0"><Label ID="Culture" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Culture.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0" ID="FaithBox"><Label ID="Faith" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="White.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0"><Label ID="LocalHappiness" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Green.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="60,34" Color="White,0"><Label ID="Unhappiness" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Red.255" Color1="Black.255"/></Box>
+				<Box Anchor="L,C" Size="64,34" Color="White,0"><Label ID="Production" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Production.255" Color1="Black.255"/></Box>
+				<Button ID="ProdButton" Anchor="L,C" Size="60,34" Color="White,0"><Image ID="ProdImage" Anchor="C,C" Size="45,45" Texture="WonderAtlas360.dds"><Box Anchor="L,C" Offset="-22,0" Size="6,30" Color="0,0,0,255"><Bar ID="ProductionBarShadow" Anchor="C,B" Size="4,30" FGColor="Production,128" Direction="Up"/><Bar ID="ProductionBar" Anchor="C,B" Size="4,30" FGColor="Production,255" Direction="Up"/><Label ID="BuildGrowth" Anchor="R,B" AnchorSide="O.I" Offset="1,2" Font="TwCenMT14" FontStyle="Stroke" Color0="Production,255" Color1="0,0,0,200"/></Box></Image></Button>
+			</Stack><Image Anchor="C,B" Texture="bar900x2.dds" Size="918,1"/></Box></Instance>
 </Context>

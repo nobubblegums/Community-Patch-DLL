@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Context Font="TwCenMT20" FontStyle="Shadow" ColorSet="Beige_Black_Alpha">
+	<Box Style="BGBlock_ClearTopBar"/>
+	<Grid Anchor="C,C" Offset="0,36" Size="1200,658" Padding="0,0" Style="Grid9DetailFive140" ConsumeMouse="1">
+		<Image Anchor="C,T" AnchorSide="I.O" Offset="0,-16" Size="256,64" Texture="assets\UI\Art\Icons\Top512IconTrim.dds">
+			<Image ID="CivIconBG" Anchor="C,C" Offset="-1,-1" Size="64,64" TextureOffset="77,0" Texture="CivIconBGSizes.dds"/>
+			<Image ID="CivIconShadow" Anchor="C,C" Size="48,48" Texture="CivSymbolAtlas48.dds" Color="Black.128"/>
+			<Image ID="CivIcon" Anchor="C,C" Offset="-1,-1" Size="48,48" Texture="CivSymbolsColor512.dds"/>
+		</Image>
+		<Label ID="Title" Anchor="C,T" Offset="0,19" String="TXT_KEY_ECONOMIC_OVERVIEW" Font="TwCenMT20" Color0="30.50.80.255" Color1="133.184.186.255" FontStyle="SoftShadow"/>
+		<Box Anchor="C,T" Offset="0,44" Size="1171,32" Color="0.0.0.128"><Stack Anchor="C,T" Size="1171,32" StackGrowth="Right" Padding="0">
+			<Button ID="GeneralInfoButton" Anchor="L,T" Size="585,24" String="TXT_KEY_GENERAL_INFORMATION"><Grid ID="GeneralInfoSelectHighlight" Anchor="C,C" Size="585,26" Style="Grid9FrameTurns" Hidden="1"/></Button>
+			<Button ID="HappinessButton" Anchor="L,T" Size="586,24" String="TXT_KEY_HAPPINESS_AND_RESOURCES"><Grid ID="HappinessSelectHighlight" Anchor="C,C" Size="586,26" Style="Grid9FrameTurns" Hidden="1"/></Button>
+		</Stack><Image Anchor="C,B" Texture="HorizontalTrim.dds" Size="1171,5"/></Box>
+		<Box Anchor="C,B" AnchorSide="I.I" Offset="0,54" Size="1160,56" Color="255,255,255,0"><GridButton ID="CloseButton" Anchor="L,B" Offset="14,0" Size="150,32" Style="SmallButton"><Label Anchor="C,C" String="TXT_KEY_CLOSE" Font="TwCenMT18" ColorSet="Beige_Black_Alpha" FontStyle="Shadow"/></GridButton></Box>
+		<Image Anchor="C,B" Offset="0,110" Texture="HorizontalTrim.dds" Size="1160,5"/>
+	</Grid>
+	<LuaContext FileName="Assets/UI/InGame/Popups/EconomicGeneralInfo" ID="EconomicGeneralInfo" Hidden="0"/>
+	<LuaContext FileName="Assets/UI/InGame/Popups/HappinessInfo" ID="HappinessInfo" Hidden="1"/>
+</Context>

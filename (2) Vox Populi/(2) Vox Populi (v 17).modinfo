@@ -1091,8 +1091,9 @@
     <File md5="E39E93CD1F55DCB32C7829AE87F45EA4" import="1">Core Files/Overrides/DiploRelationships.lua</File>
     <File md5="D773117CAB28D8ECCFED0DA6567132D7" import="1">Core Files/Overrides/DiscussionDialog.lua</File>
     <File md5="D708ADD4055DD571EDBDC2588DF0DC0E" import="1">Core Files/Overrides/DiscussionDialog.xml</File>
-    <File md5="D83B6F1C668EDCECDC098619036928B8" import="1">Core Files/Overrides/EconomicGeneralInfo.lua</File>
-    <File md5="3A73B221D228BD6508038FCA62239692" import="1">Core Files/Overrides/EconomicGeneralInfo.xml</File>
+    <File md5="87EF85550ABBF8C1D8F5A8CEB6BE8179" import="1">Core Files/Overrides/EconomicGeneralInfo.lua</File>
+    <File md5="B560569F5B528B1F17C3F319BB196324" import="1">Core Files/Overrides/EconomicGeneralInfo.xml</File>
+    <File md5="1645D5232D7E7EE7E35B779003323267" import="1">Core Files/Overrides/EconomicOverview.xml</File>
     <File md5="16B07AAA25EB4AA80C4FAEAD0AC32D02" import="1">Core Files/Overrides/EconomicOverview.lua</File>
     <File md5="18D992FD54449C8825F7024F60426C92" import="1">Core Files/Overrides/EspionageOverview.lua</File>
     <File md5="40E602CD054FCEC15E0D9ECB716B6F13" import="1">Core Files/Overrides/EspionageOverview.xml</File>
