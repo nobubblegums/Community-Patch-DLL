@@ -109,7 +109,11 @@ local function UpdateCityIndicators(pCity, instance)
         Add("[ICON_RAZING]", Locale.ConvertTextKey("TXT_KEY_CITY_BURNING", pCity:GetRazingTurns()));
     end
     if (pCity:IsBlockaded()) then
-        Add("[ICON_BLOCKADED]", Locale.ConvertTextKey("TXT_KEY_CITY_BLOCKADED"));
+        if (pCity:GetSappedTurns() > 0) then
+            Add("[ICON_SAPPED]", Locale.ConvertTextKey("TXT_KEY_CITY_SAPPED", pCity:GetSappedTurns()));
+        else
+            Add("[ICON_BLOCKADED]", Locale.ConvertTextKey("TXT_KEY_CITY_BLOCKADED"));
+        end
     end
     if (pCity:GetWeLoveTheKingDayCounter() > 0) then
         Add("[ICON_HAPPINESS_1]", "We Love the King Day: " .. pCity:GetWeLoveTheKingDayCounter() .. " turns");
