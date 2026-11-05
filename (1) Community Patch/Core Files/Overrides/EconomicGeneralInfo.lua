@@ -114,7 +114,7 @@ local function UpdateCityIndicators(pCity, instance)
 
     local focus = g_CityFocus[pCity:GetFocusType()];
     instance.CityFocus:SetText(focus and focus[1] or "[ICON_RANGE_STRENGTH]");
-    instance.CityFocus:SetToolTipString(focus and Locale.ConvertTextKey(focus[2]) or Locale.ConvertTextKey("TXT_KEY_CITYVIEW_FOCUS_BALANCED_TT"));
+    instance.CityFocus:SetToolTipString(focus and Locale.ConvertTextKey(focus[2]) or Locale.ConvertTextKey("TXT_KEY_CITYVIEW_FOCUS_BALANCED_TEXT"));
 
     local majority = pCity:GetReligiousMajority();
     local religion = GameInfo.Religions[majority];
@@ -131,6 +131,8 @@ local function UpdateCityIndicators(pCity, instance)
         instance.ReligionFollowers:SetText("");
         instance.ReligionIcon:SetHide(true);
     end
+    instance.ReligionContents:CalculateSize();
+    instance.ReligionContents:ReprocessAnchoring();
     return followers;
 end
 
@@ -327,7 +329,8 @@ function UpdateGPT()
     Controls.TotalGoldValue:SetText( FormatDecimalTimes100( pPlayer:GetGoldTimes100()) );
     
     local netGPT = pPlayer:CalculateGoldRateTimes100()
-    Controls.NetGoldValue:SetText( FormatDecimalTimes100( netGPT, "#.##" ) );
+    local netText = FormatDecimalTimes100(netGPT, "#.##");
+    Controls.NetGoldValue:SetText((netGPT >= 0 and "[COLOR_POSITIVE_TEXT]" or "[COLOR_NEGATIVE_TEXT]") .. netText .. "[ENDCOLOR]");
     
     if( netGPT < 0 ) then
         Controls.ScienceLost:SetHide( false );
@@ -336,7 +339,7 @@ function UpdateGPT()
         Controls.ScienceLost:SetHide( true );
     end
     
-    Controls.GrossGoldValue:SetText( "[COLOR_POSITIVE_TEXT]" .. FormatDecimalTimes100( pPlayer:CalculateGrossGoldTimes100() ) .. "[ENDCOLOR]" );
+    Controls.GrossGoldValue:SetText( FormatDecimalTimes100( pPlayer:CalculateGrossGoldTimes100() ) );
     
     Controls.TotalExpenseValue:SetText( "[COLOR_NEGATIVE_TEXT]" .. FormatDecimal( pPlayer:CalculateInflatedCosts() ) .. "[ENDCOLOR]" );
 
@@ -739,6 +742,7 @@ function ProductionDetails( city, instance )
 		end
 		
 		instance.BuildGrowth:SetText(buildGrowth);
+        instance.BuildGrowth:SetSizeX(math.max(10, #tostring(buildGrowth) * 9));
 
 	end
 	
@@ -793,6 +797,9 @@ function ProductionDetails( city, instance )
 		end
 	end
 	
+    instance.ProductionContents:CalculateSize();
+    instance.ProductionContents:ReprocessAnchoring();
+
 	-- hookup pedia and production popup to production button
 	instance.ProdButton:RegisterCallback( Mouse.eLClick, OnProdClick );
 	pediaSearchStrings[tostring(instance.ProdButton)] = Locale.ConvertTextKey(cityProductionName);

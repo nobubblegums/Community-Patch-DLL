@@ -7,10 +7,10 @@
 			<Box Anchor="L,C" Color="White,0" Size="230,24">
 				<Label Anchor="C,C" String="TXT_KEY_EO_GPT"/>
 			</Box>
-			<Button ID="SortPopulation" Anchor="L,C" Size="76,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_POPULATION">
+			<Button ID="SortPopulation" Anchor="L,C" Size="60,24" Style="BoxButton" ToolTip="TXT_KEY_EO_SORT_POPULATION">
 				<ShowOnMouseOver>
-					<AlphaAnim Anchor="C,C" Size="76,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-						<Grid Anchor="C,C" Size="76,30" Style="Grid9FrameTurnsHL"/>
+					<AlphaAnim Anchor="C,C" Size="60,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
+						<Grid Anchor="C,C" Size="60,30" Style="Grid9FrameTurnsHL"/>
 					</AlphaAnim>
 				</ShowOnMouseOver>
 				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_CITIZEN]"/>
@@ -21,7 +21,7 @@
 						<Grid Anchor="C,C" Size="270,30" Style="Grid9FrameTurnsHL"/>
 					</AlphaAnim>
 				</ShowOnMouseOver>
-				<Label Anchor="L,C" Offset="8,-1" Font="TwCenMT20" String="TXT_KEY_CITY"/>
+				<Label Anchor="L,C" Offset="3,-1" Font="TwCenMT20" String="TXT_KEY_CITY"/>
 			</Button>
 			<Button ID="SortReligion" Anchor="L,C" Size="84,24" Style="BoxButton" ToolTip="TXT_KEY_RELIGION">
 				<ShowOnMouseOver>
@@ -29,9 +29,9 @@
 						<Grid Anchor="C,C" Size="84,30" Style="Grid9FrameTurnsHL"/>
 					</AlphaAnim>
 				</ShowOnMouseOver>
-				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_PROPHET]"/>
+				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_RELIGION]"/>
 			</Button>
-			<Button ID="SortFocus" Anchor="L,C" Size="36,24" Style="BoxButton" ToolTip="TXT_KEY_CITYVIEW_FOCUS_BALANCED_TT">
+			<Button ID="SortFocus" Anchor="L,C" Size="36,24" Style="BoxButton" ToolTip="TXT_KEY_CITYVIEW_FOCUS_BALANCED_TEXT">
 				<ShowOnMouseOver>
 					<AlphaAnim Anchor="C,C" Size="36,30" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
 						<Grid Anchor="C,C" Size="36,30" Style="Grid9FrameTurnsHL"/>
@@ -103,7 +103,7 @@
 				</ShowOnMouseOver>
 				<Label Anchor="C,C" Offset="0,-1" Font="TwCenMT18" String="[ICON_PRODUCTION]"/>
 			</Button>
-			<Box Anchor="L,C" Size="106,24" Color="White,0"/>
+			<Box Anchor="L,C" Size="94,24" Color="White,0"/>
 		</Stack>
 		<!-- Strong header separator, distinct from 1px city-row dividers -->
 		<Image Anchor="L,T" Offset="230,27" Size="920,3" Texture="HorizontalTrim.dds" Color="White.200"/>
@@ -117,14 +117,6 @@
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_TOTAL_GOLD"/>
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="TotalGoldValue"/>
 				</Box>
-				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="NetGold">
-					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_NET_PER_TURN"/>
-					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="NetGoldValue"/>
-				</Box>
-				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="ScienceLost" ToolTip="TXT_KEY_EO_PENALTY_TT">
-					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_PENALTY"/>
-					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="ScienceLostValue"/>
-				</Box>
 				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="GrossGold">
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_GROSS"/>
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="GrossGoldValue"/>
@@ -132,6 +124,14 @@
 				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="TotalExpense">
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_TOTAL_EXPENSE"/>
 					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="TotalExpenseValue"/>
+				</Box>
+				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="NetGold">
+					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_NET_PER_TURN"/>
+					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="NetGoldValue"/>
+				</Box>
+				<Box Size="215,24" Anchor="c,c" Color="0.0.0.0" ID="ScienceLost" ToolTip="TXT_KEY_EO_PENALTY_TT">
+					<Label Offset="10,0" Font="TwCenMT18" Anchor="L,C" String="TXT_KEY_EO_PENALTY"/>
+					<Label Offset="10,0" Font="TwCenMT18" Anchor="R,C" ID="ScienceLostValue"/>
 				</Box>
 				<!--  Income  -->
 				<Box Size="175,45" Color="Beige,0" Anchor="C,C">
@@ -207,7 +207,7 @@
 			<ScrollBar Offset="0,18" Style="VertSlider" Anchor="R,T" Length="402" ID="ScrollBar"/>
 			<UpButton Offset="0,0" Style="ScrollBarUp" Anchor="R,T" ID="UpButton"/>
 			<DownButton Offset="0,420" Style="ScrollBarDown" Anchor="R,T" ID="DownButton"/>
-			<Stack Anchor="L,T" Size="892,440" StackGrowth="Bottom" Padding="0" ID="MainStack">
+			<Stack Anchor="L,T" Size="864,440" StackGrowth="Bottom" Padding="0" ID="MainStack">
 			</Stack>
 		</ScrollPanel>
 	</Box>
@@ -222,29 +222,31 @@
 	<!--=======================================================================================================================-->
 	<!--=======================================================================================================================-->
 		<Instance Name="CityInstance">
-		<Box ID="Root" Anchor="L,T" Size="892,34" Color="255,255,255,0">
+		<Box ID="Root" Anchor="L,T" Size="864,34" Color="255,255,255,0">
 			<Stack ID="CityRowStack" Anchor="L,C" StackGrowth="Right" Offset="0,0" Padding="0">
-				<Box Anchor="L,C" Size="76,34" Color="White,0">
+				<Box Anchor="L,C" Size="60,34" Color="White,0">
 					<Label ID="Population" Anchor="L,C" Offset="2,0" Size="28,24" Font="TwCenMT20" FontStyle="Stroke" Color0="Beige.255" Color1="Black.255"/>
-					<Box ID="GrowthBox" Anchor="L,B" Offset="31,0" Size="6,38" Color="0,0,0,255">
-						<Bar ID="GrowthBarShadow" Anchor="C,B" Size="4,38" FGColor="Food,128" Direction="Up"/>
-						<Bar ID="GrowthBar" Anchor="C,B" Size="4,38" FGColor="Food,255" Direction="Up"/>
+					<Box ID="GrowthBox" Anchor="L,B" Offset="28,0" Size="6,34" Color="0,0,0,255">
+						<Bar ID="GrowthBarShadow" Anchor="C,B" Offset="0,2" Size="4,29" FGColor="Food,128" Direction="Up"/>
+						<Bar ID="GrowthBar" Anchor="C,B" Offset="0,2" Size="4,29" FGColor="Food,255" Direction="Up"/>
 					</Box>
-					<Label ID="CityGrowth" Anchor="L,B" Offset="39,1" Size="34,20" Font="TwCenMT14" FontStyle="Stroke" Color0="Food.255" Color1="0,0,0,200"/>
+					<Label ID="CityGrowth" Anchor="L,B" Offset="36,2" Size="23,20" Font="TwCenMT14" FontStyle="Stroke" Color0="Food.255" Color1="0,0,0,200"/>
 				</Box>
 				<Box Anchor="L,C" Size="270,34" Color="White,0">
 					<Box ID="HealthBarBox" Anchor="C,B" Offset="-50,2" Size="130,5" Color="Black,256" Hidden="1">
 						<Bar ID="HealthBar" Anchor="C,C" Size="128,3" Direction="Right" FGColor="Green,255"/>
 					</Box>
-					<Stack ID="CityInfoStack" Anchor="L,C" Offset="6,0" StackGrowth="Right" Padding="2">
+					<Stack ID="CityInfoStack" Anchor="L,C" Offset="1,0" StackGrowth="Right" Padding="2">
 						<Label ID="CityName" Anchor="L,C" Offset="0,1" Font="TwCenMT20" FontStyle="Shadow" ColorSet="Beige_Black_Alpha"/>
 						<Label ID="IconCapital" Anchor="L,C" Font="TwCenMT18" String="[ICON_CAPITAL]" Hidden="1"/>
 						<Label ID="CityStatus" Anchor="L,C" Font="TwCenMT18" FontStyle="Shadow"/>
 					</Stack>
 				</Box>
 				<Box ID="ReligionBox" Anchor="L,C" Size="84,34" Color="White,0">
-					<Label ID="ReligionFollowers" Anchor="L,C" Offset="8,0" Size="30,24" Font="TwCenMT18" FontStyle="Stroke" Color0="Beige.255" Color1="Black.255"/>
-					<Image ID="ReligionIcon" Anchor="L,C" Offset="42,0" Size="32,32" Hidden="1"/>
+					<Stack ID="ReligionContents" Anchor="C,C" StackGrowth="Right" Padding="0">
+						<Label ID="ReligionFollowers" Anchor="L,C" Font="TwCenMT18" FontStyle="Stroke" Color0="Beige.255" Color1="Black.255"/>
+						<Image ID="ReligionIcon" Anchor="L,C" Size="32,32" Hidden="1"/>
+					</Stack>
 				</Box>
 				<Box ID="FocusBox" Anchor="L,C" Size="36,34" Color="White,0">
 					<Label ID="CityFocus" Anchor="C,C" Font="TwCenMT20" FontStyle="Shadow"/>
@@ -273,16 +275,18 @@
 				<Box Anchor="L,C" Size="40,34" Color="White,0" ID="ProductionBox">
 					<Label ID="Production" Anchor="C,C" Font="TwCenMT20" FontStyle="Stroke" Color0="Production.255" Color1="Black.255"/>
 				</Box>
-				<Button ID="ProdButton" Anchor="L,C" Size="106,34" Color="White,0">
-					<Box Anchor="L,B" Offset="8,0" Size="6,38" Color="0,0,0,255">
-						<Bar ID="ProductionBarShadow" Anchor="C,B" Size="4,38" FGColor="Production,128" Direction="Up"/>
-						<Bar ID="ProductionBar" Anchor="C,B" Size="4,38" FGColor="Production,255" Direction="Up"/>
-					</Box>
-					<Label ID="BuildGrowth" Anchor="L,B" Offset="16,1" Size="30,20" Font="TwCenMT14" FontStyle="Stroke" Color0="Production.255" Color1="0,0,0,200"/>
-					<Image ID="ProdImage" Anchor="L,C" Offset="56,0" Size="45,45" Texture="WonderAtlas360.dds"/>
+				<Button ID="ProdButton" Anchor="L,C" Size="94,34" Color="White,0">
+					<Stack ID="ProductionContents" Anchor="L,C" StackGrowth="Right" Padding="2">
+						<Box Anchor="L,C" Size="6,34" Color="0,0,0,255">
+							<Bar ID="ProductionBarShadow" Anchor="C,B" Offset="0,2" Size="4,29" FGColor="Production,128" Direction="Up"/>
+							<Bar ID="ProductionBar" Anchor="C,B" Offset="0,2" Size="4,29" FGColor="Production,255" Direction="Up"/>
+						</Box>
+						<Label ID="BuildGrowth" Anchor="L,C" Offset="0,8" Font="TwCenMT14" FontStyle="Stroke" Color0="Production.255" Color1="0,0,0,200"/>
+						<Image ID="ProdImage" Anchor="L,C" Offset="4,0" Size="45,45" Texture="WonderAtlas360.dds"/>
+					</Stack>
 				</Button>
 			</Stack>
-			<Image ID="RowDivider" Anchor="C,B" Texture="bar900x2.dds" Size="892,1"/>
+			<Image ID="RowDivider" Anchor="C,B" Texture="bar900x2.dds" Size="864,1"/>
 		</Box>
 	</Instance>
 </Context>
