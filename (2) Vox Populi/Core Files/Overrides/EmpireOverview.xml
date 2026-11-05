@@ -10,25 +10,33 @@
 		</Image>
 		<Image Anchor="L,C" AnchorSide="O.I" Offset="-17,0" Texture="Dec32x64Left.dds" Size="32,64"/>
 		<Image Anchor="R,C" AnchorSide="O.I" Offset="-17,0" Texture="Dec32x64Right.dds" Size="32,64"/>
-		<Label ID="Title" Anchor="C,T" Offset="0,19" String="TXT_KEY_ECONOMIC_OVERVIEW" Font="TwCenMT20" Color0="30.50.80.255" Color1="133.184.186.255" Color2="133.184.186.255" FontStyle="SoftShadow"/>
+		<Label ID="Title" Anchor="C,T" Offset="0,19" String="TXT_KEY_EMPIRE_OVERVIEW" Font="TwCenMT20" Color0="30.50.80.255" Color1="133.184.186.255" Color2="133.184.186.255" FontStyle="SoftShadow"/>
 		<!-- Top Panel -->
 		<Box Anchor="C,T" Offset="0,44" Size="1171,32" Color="0.0.0.128">
 			<Stack Anchor="C,T" Size="1171,32" StackGrowth="Right" Padding="0">
-				<Button ID="GeneralInfoButton" Anchor="L,T" Size="585,24" String="TXT_KEY_GENERAL_INFORMATION">
+				<Button ID="GeneralInfoButton" Anchor="L,T" Size="390,24" String="TXT_KEY_GENERAL_INFORMATION">
 					<ShowOnMouseOver>
-						<AlphaAnim Anchor="L,C" Size="585,27" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-							<Grid Size="585,27" Offset="0,2" Style="Grid9FrameTurnsHL"/>
+						<AlphaAnim Anchor="L,C" Size="390,27" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
+							<Grid Size="390,27" Offset="0,2" Style="Grid9FrameTurnsHL"/>
 						</AlphaAnim>
 					</ShowOnMouseOver>
-					<Grid ID="GeneralInfoSelectHighlight" Anchor="C,C" Offset="0,1" Size="585,26" Style="Grid9FrameTurns" Hidden="1"/>
+					<Grid ID="GeneralInfoSelectHighlight" Anchor="C,C" Offset="0,1" Size="390,26" Style="Grid9FrameTurns" Hidden="1"/>
 				</Button>
-				<Button ID="HappinessButton" Anchor="L,T" Size="586,24" String="TXT_KEY_HAPPINESS_AND_RESOURCES">
+				<Button ID="HappinessButton" Anchor="L,T" Size="390,24" String="TXT_KEY_HAPPINESS_AND_RESOURCES">
 					<ShowOnMouseOver>
-						<AlphaAnim Anchor="L,C" Size="586,27" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
-							<Grid Size="586,27" Offset="0,2" Style="Grid9FrameTurnsHL"/>
+						<AlphaAnim Anchor="L,C" Size="390,27" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
+							<Grid Size="390,27" Offset="0,2" Style="Grid9FrameTurnsHL"/>
 						</AlphaAnim>
 					</ShowOnMouseOver>
-					<Grid ID="HappinessSelectHighlight" Anchor="C,C" Offset="0,1" Size="586,26" Style="Grid9FrameTurns" Hidden="1"/>
+					<Grid ID="HappinessSelectHighlight" Anchor="C,C" Offset="0,1" Size="390,26" Style="Grid9FrameTurns" Hidden="1"/>
+				</Button>
+				<Button ID="MilitaryButton" Anchor="L,T" Size="391,24" String="TXT_KEY_MILITARY_OVERVIEW">
+					<ShowOnMouseOver>
+						<AlphaAnim Anchor="L,C" Size="391,27" Pause="0" Cycle="Bounce" Speed="1" AlphaStart="2" AlphaEnd="1">
+							<Grid Size="391,27" Offset="0,2" Style="Grid9FrameTurnsHL"/>
+						</AlphaAnim>
+					</ShowOnMouseOver>
+					<Grid ID="MilitarySelectHighlight" Anchor="C,C" Offset="0,1" Size="391,26" Style="Grid9FrameTurns" Hidden="1"/>
 				</Button>
 			</Stack>
 			<Image Anchor="C,B" Texture="HorizontalTrim.dds" Size="1171,5"/>
@@ -42,4 +50,5 @@
 	</Grid>
 	<LuaContext FileName="Assets/UI/InGame/Popups/EconomicGeneralInfo" ID="EconomicGeneralInfo" Hidden="0"/>
 	<LuaContext FileName="Assets/UI/InGame/Popups/HappinessInfo" ID="HappinessInfo" Hidden="1"/>
+	<LuaContext FileName="Assets/UI/InGame/Popups/MilitaryOverview" ID="MilitaryInfo" Hidden="1"/>
 </Context>

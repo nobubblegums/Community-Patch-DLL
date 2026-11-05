@@ -1093,8 +1093,9 @@
     <File md5="D708ADD4055DD571EDBDC2588DF0DC0E" import="1">Core Files/Overrides/DiscussionDialog.xml</File>
     <File md5="CF27EDF2C18B854324F650717E7BEB12" import="1">Core Files/Overrides/EconomicGeneralInfo.lua</File>
     <File md5="45FDD121E79552D7BB0DBC91EB69C450" import="1">Core Files/Overrides/EconomicGeneralInfo.xml</File>
-    <File md5="B1E7B7B002A73342DE941852BEF3F82E" import="1">Core Files/Overrides/EconomicOverview.xml</File>
-    <File md5="16B07AAA25EB4AA80C4FAEAD0AC32D02" import="1">Core Files/Overrides/EconomicOverview.lua</File>
+    <File md5="5CB6054B251F3CF756951F098B9C8195" import="1">Core Files/Overrides/EmpireOverview.xml</File>
+    <File md5="6E646CEC705D228E37858578227AF033" import="1">Core Files/Overrides/EmpireOverview.lua</File>
+    <File md5="6EB859883C8B023B1579F123928DADF7" import="1">Core Files/Overrides/InGame.xml</File>
     <File md5="18D992FD54449C8825F7024F60426C92" import="1">Core Files/Overrides/EspionageOverview.lua</File>
     <File md5="40E602CD054FCEC15E0D9ECB716B6F13" import="1">Core Files/Overrides/EspionageOverview.xml</File>
     <File md5="C00FE91207AA52FD54CD0B1E273A2BB1" import="1">Core Files/Overrides/FeatureGenerator.lua</File>
@@ -1105,8 +1106,8 @@
     <File md5="252CF7B30C29EDDB13DE924B209CA71F" import="1">Core Files/Overrides/GPList.xml</File>
     <File md5="6D5F67979B18C4C6B38CA4B305C30F4E" import="1">Core Files/Overrides/LeagueOverview.lua</File>
     <File md5="D1B2B6362725A779E49BAD0C8366DE6A" import="1">Core Files/Overrides/LeagueOverview.xml</File>
-    <File md5="41B419AEC098239C22DA17AC56B70952" import="1">Core Files/Overrides/MilitaryOverview.lua</File>
-    <File md5="A6967D1B10962A1A2F425DF9ADE2FEBC" import="1">Core Files/Overrides/MilitaryOverview.xml</File>
+    <File md5="20B1FC2764426CB3B99345BA5F0D817C" import="1">Core Files/Overrides/MilitaryOverview.lua</File>
+    <File md5="4EA6B6913B3B44CBA9416697C5517572" import="1">Core Files/Overrides/MilitaryOverview.xml</File>
     <File md5="A9FEDE41B8D28348DDD9FD51E905C096" import="1">Core Files/Overrides/NaturalWonderPopup.lua</File>
     <File md5="37A831378B37D512F4A0234BEEE438E7" import="1">Core Files/Overrides/NaturalWondersCustomMethods.lua</File>
     <File md5="02F8E3F66317AC17A9CD02B2C9CAF1AA" import="1">Core Files/Overrides/PlotMouseoverInclude.lua</File>
@@ -1295,7 +1296,7 @@
     <File md5="128D729700548362CF38EE0678399279" import="0">Database Changes/Text/en_US/Tech/TechTextChanges.sql</File>
     <File md5="E5CB0AB92FAA1B2128EE557C30451B66" import="0">Database Changes/Text/en_US/UI/InterfaceModeTextChanges.sql</File>
     <File md5="B5C60FD5DF02295B68C1FEE0052EFD88" import="0">Database Changes/Text/en_US/UI/NewUIText.sql</File>
-    <File md5="D5002E9BEDF0BC1CCABC7CDBF68C647B" import="0">Database Changes/Text/en_US/UI/NewUIText.xml</File>
+    <File md5="6313964C556538E674AA305C3A1FDBB9" import="0">Database Changes/Text/en_US/UI/NewUIText.xml</File>
     <File md5="B11E079B2A03DCA304B42C9071572CF6" import="0">Database Changes/Text/en_US/UI/UITextChanges.sql</File>
     <File md5="2593B8D19F03C2748F570B1AD0B1F9B4" import="0">Database Changes/Text/en_US/UnitPromotions/NewPromotionText.xml</File>
     <File md5="0F7FA7A5B4A7208E6D443ADB8E3C1D5D" import="0">Database Changes/Text/en_US/UnitPromotions/PromotionTextChanges.sql</File>

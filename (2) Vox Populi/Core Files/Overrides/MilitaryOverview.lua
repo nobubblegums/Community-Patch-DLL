@@ -1,4 +1,4 @@
-print("Loading MilitaryOverview.lua from 'VP-UI - Show XP in Military Overview'")
+-- VP Military Overview content.
 -------------------------------------------------
 -- Military
 -- v1.0, Feb 1, 2017: modified by Infixo for Show XP in Military Overview mod
@@ -50,50 +50,8 @@ m_tGreatPeopleIcons = {
 ["UNIT_EXPLORER"] = "[ICON_GREAT_EXPLORER]", 
 ["UNIT_GREAT_DIPLOMAT"] = "[ICON_DIPLOMAT]" };
 
--------------------------------------------------
--- On Popup
--------------------------------------------------
-function OnPopup( popupInfo )
-	if( popupInfo.Type == ButtonPopupTypes.BUTTONPOPUP_MILITARY_OVERVIEW ) then
-    	m_PopupInfo = popupInfo;
-    	
-		if( m_PopupInfo.Data1 == 1 ) then
-        	if( ContextPtr:IsHidden() == false ) then
-        	    OnClose();
-            else
-            	UIManager:QueuePopup( ContextPtr, PopupPriority.InGameUtmost );
-        	end
-    	else
-        	UIManager:QueuePopup( ContextPtr, PopupPriority.MilitaryOverview );
-    	end
-	end
-end
-Events.SerialEventGameMessagePopup.Add( OnPopup );
+-- Military is an embedded Empire Overview tab; its parent handles popup events.
 
-
--------------------------------------------------------------------------------
--------------------------------------------------------------------------------
-function OnClose()
-    UIManager:DequeuePopup( ContextPtr );
-end
-Controls.CloseButton:RegisterCallback( Mouse.eLClick, OnClose);
-
-
--------------------------------------------------------------------------------
--------------------------------------------------------------------------------
-function InputHandler( uiMsg, wParam, lParam )
-    if uiMsg == KeyEvents.KeyDown then
-        if wParam == Keys.VK_ESCAPE or wParam == Keys.VK_RETURN then
-            OnClose();
-            return true;
-        end
-    end
-end
-ContextPtr:SetInputHandler( InputHandler );
-
-
--------------------------------------------------------------------------------
--------------------------------------------------------------------------------
 function UnitClicked(unitID)
     local pSelectedUnit = UI:GetHeadSelectedUnit();
     if( pSelectedUnit ~= nil and
@@ -508,29 +466,17 @@ Controls.SortXP:SetVoid1( eUnitXP );
         
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
-function ShowHideHandler( bIsHide, bInitState )
-
-	-- Set player icon at top of screen
-	CivIconHookup( 0, 64, Controls.Icon, Controls.CivIconBG, Controls.CivIconShadow, false, true );
-    UpdateScreen();
-
-    if( not bInitState ) then
-        if( not bIsHide ) then
-        	UI.incTurnTimerSemaphore();
-			m_bSortReverse = not m_bSortReverse;
-        	OnSort( m_SortMode );
-        	Events.SerialEventGameMessagePopupShown(m_PopupInfo);
-        else
-            UI.decTurnTimerSemaphore();
-            Events.SerialEventGameMessagePopupProcessed.CallImmediate(ButtonPopupTypes.BUTTONPOPUP_MILITARY_OVERVIEW, 0);
-        end
-    end
+function ShowHideHandler(bIsHide, bInitState)
+	if not bInitState and not bIsHide then
+		UpdateScreen();
+		Controls.MilitaryStack:SortChildren(SortFunction);
+		Controls.CivilianStack:SortChildren(SortFunction);
+	end
 end
-ContextPtr:SetShowHideHandler( ShowHideHandler );
+ContextPtr:SetShowHideHandler(ShowHideHandler );
 
 ----------------------------------------------------------------
 -- 'Active' (local human) player has changed
 ----------------------------------------------------------------
-Events.GameplaySetActivePlayer.Add(OnClose);
 
-print("Loaded MilitaryOverview.lua from 'UI - Show XP in Military Overview'")
+
