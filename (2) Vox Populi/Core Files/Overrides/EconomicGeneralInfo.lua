@@ -144,6 +144,23 @@ local function UpdateCityIndicators(pCity, instance)
     return followers;
 end
 
+
+-- Build city yield breakdowns only when a yield value is hovered.
+local g_YieldTooltipControls = {};
+TTManager:GetTypeControlTable("TooltipTypeTopPanel", g_YieldTooltipControls);
+
+local function SetCityYieldTooltip(control, playerID, cityID, yieldType)
+    control:SetToolTipType("TooltipTypeTopPanel");
+    control:SetToolTipCallback(function()
+        local pCity = Players[playerID]:GetCityByID(cityID);
+        if (pCity) then
+            g_YieldTooltipControls.TooltipLabel:SetText(pCity:GetYieldRateTooltip(yieldType));
+            g_YieldTooltipControls.TopPanelMouseover:SetHide(false);
+            g_YieldTooltipControls.TopPanelMouseover:DoAutoSize();
+        end
+    end);
+end
+
 local g_EconomicColumns = {
     { "Food", "SortFood" },
     { "Gold", "SortGold" },
@@ -298,6 +315,15 @@ function UpdateDisplay()
 			instance.Faith:SetText( math.floor(sortEntry.Faith) );
 			instance.FaithBox:SetHide(false);   
         end
+        -- Generate the native yield breakdown on hover, not on every overview refresh.
+        local playerID, cityID = pCity:GetOwner(), pCity:GetID();
+        SetCityYieldTooltip(instance.Food, playerID, cityID, YieldTypes.YIELD_FOOD);
+        SetCityYieldTooltip(instance.Production, playerID, cityID, YieldTypes.YIELD_PRODUCTION);
+        SetCityYieldTooltip(instance.Gold, playerID, cityID, YieldTypes.YIELD_GOLD);
+        SetCityYieldTooltip(instance.Science, playerID, cityID, YieldTypes.YIELD_SCIENCE);
+        SetCityYieldTooltip(instance.Culture, playerID, cityID, YieldTypes.YIELD_CULTURE);
+        SetCityYieldTooltip(instance.Faith, playerID, cityID, YieldTypes.YIELD_FAITH);
+
         cityRows[#cityRows + 1] = { instance = instance, values = sortEntry };
     end
     
