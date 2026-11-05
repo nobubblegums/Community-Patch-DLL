@@ -20,6 +20,8 @@ local eResearch = 6;
 local eGold = 7;
 local eCulture = 8;
 local eFaith = 9;
+local eReligion = 11;
+local eFocus = 12;
 
 local m_SortMode = ePopulation;
 local m_bSortReverse = false;
@@ -85,10 +87,6 @@ local function UpdateCityIndicators(pCity, instance)
         table.insert(descriptions, description);
     end
 
-    local focus = g_CityFocus[pCity:GetFocusType()];
-    if (focus) then
-        Add(focus[1], Locale.ConvertTextKey(focus[2]));
-    end
     if (pCity:IsForcedAvoidGrowth()) then
         Add("[ICON_LOCKED]", Locale.ConvertTextKey("TXT_KEY_CITYVIEW_FOCUS_AVOID_GROWTH_TEXT"));
     end
@@ -114,14 +112,26 @@ local function UpdateCityIndicators(pCity, instance)
     instance.CityStatus:SetSizeX(math.min(90, #icons * 18));
     instance.CityStatus:SetToolTipString(table.concat(descriptions, "[NEWLINE]"));
 
-    local religion = GameInfo.Religions[pCity:GetReligiousMajority()];
+    local focus = g_CityFocus[pCity:GetFocusType()];
+    instance.CityFocus:SetText(focus and focus[1] or "[ICON_RANGE_STRENGTH]");
+    instance.CityFocus:SetToolTipString(focus and Locale.ConvertTextKey(focus[2]) or Locale.ConvertTextKey("TXT_KEY_CITYVIEW_FOCUS_BALANCED_TT"));
+
+    local majority = pCity:GetReligiousMajority();
+    local religion = GameInfo.Religions[majority];
+    local followers = 0;
     if (religion) then
+        followers = pCity:GetNumFollowers(majority);
+        local name = Locale.ConvertTextKey(religion.Description);
+        instance.ReligionFollowers:SetText(followers);
+        instance.ReligionFollowers:SetToolTipString(name);
         IconHookup(religion.PortraitIndex, 32, religion.IconAtlas, instance.ReligionIcon);
-        instance.ReligionIcon:SetToolTipString(Locale.ConvertTextKey(religion.Description));
+        instance.ReligionIcon:SetToolTipString(name);
         instance.ReligionIcon:SetHide(false);
     else
+        instance.ReligionFollowers:SetText("");
         instance.ReligionIcon:SetHide(true);
     end
+    return followers;
 end
 
 local g_EconomicColumns = {
@@ -130,7 +140,7 @@ local g_EconomicColumns = {
     { "Science", "SortResearch" },
     { "Culture", "SortCulture" },
     { "Faith", "SortFaith" },
-    { "Defense", "SortStrength" },
+    { "Defense", "SortStrength", "Strength" },
     { "Production", "SortProduction" },
 };
 
@@ -163,7 +173,7 @@ function UpdateDisplay()
         ProductionDetails( pCity, instance );
 
 		sortEntry.CityName = pCity:GetName();
-        TruncateString(instance.CityName, 145, sortEntry.CityName);
+        TruncateString(instance.CityName, 132, sortEntry.CityName);
         instance.CityName:SetToolTipString(sortEntry.CityName);
         
         if(pCity:IsCapital())then
@@ -179,7 +189,8 @@ function UpdateDisplay()
 			instance.IconCapital:SetHide(true);
 		end
         
-        UpdateCityIndicators(pCity, instance);
+        sortEntry.ReligionFollowers = UpdateCityIndicators(pCity, instance);
+        sortEntry.Focus = pCity:GetFocusType();
         instance.CityInfoStack:CalculateSize();
         instance.CityInfoStack:ReprocessAnchoring();
 
@@ -271,18 +282,18 @@ function UpdateDisplay()
         cityRows[#cityRows + 1] = { instance = instance, values = sortEntry };
     end
     
-    -- Size columns from their largest displayed integers. Match headers and city rows.
-    local totalWidth = 310 + 82 + 96;
+    -- Keep 12 pixels beyond the widest displayed number in each yield column.
+    local totalWidth = 76 + 270 + 84 + 36 + 106;
     for _, column in ipairs(g_EconomicColumns) do
         local field, header = column[1], column[2];
-        local maxValue = 0;
+        local maxChars = 1;
         for _, row in ipairs(cityRows) do
-            local value = row.values[field];
+            local value = row.values[column[3] or field];
             if (value) then
-                maxValue = math.max(maxValue, math.abs(math.floor(value)));
+                maxChars = math.max(maxChars, #tostring(math.floor(value)));
             end
         end
-        local width = maxValue >= 10000 and 72 or maxValue >= 1000 and 64 or maxValue >= 100 and 56 or 48;
+        local width = math.max(32, maxChars * 10 + 12);
         totalWidth = totalWidth + width;
         Controls[header]:SetSizeX(width);
         for _, row in ipairs(cityRows) do
@@ -617,6 +628,12 @@ function SortFunction( a, b )
 		elseif( m_SortMode == eFaith ) then
 			valueA = entryA.Faith;
 			valueB = entryB.Faith;
+		elseif( m_SortMode == eReligion ) then
+			valueA = entryA.ReligionFollowers;
+			valueB = entryB.ReligionFollowers;
+		elseif( m_SortMode == eFocus ) then
+			valueA = entryA.Focus;
+			valueB = entryB.Focus;
 		else -- SortProduction
 			valueA = entryA.Production;
 			valueB = entryB.Production;
@@ -650,6 +667,8 @@ function OnSort( type )
 end
 Controls.SortPopulation:RegisterCallback( Mouse.eLClick, OnSort );
 Controls.SortCityName:RegisterCallback( Mouse.eLClick, OnSort );
+Controls.SortReligion:RegisterCallback( Mouse.eLClick, OnSort );
+Controls.SortFocus:RegisterCallback( Mouse.eLClick, OnSort );
 Controls.SortStrength:RegisterCallback( Mouse.eLClick, OnSort );
 Controls.SortProduction:RegisterCallback( Mouse.eLClick, OnSort );
 Controls.SortFood:RegisterCallback( Mouse.eLClick, OnSort );
@@ -658,6 +677,8 @@ Controls.SortCulture:RegisterCallback( Mouse.eLClick, OnSort );
 
 Controls.SortPopulation:SetVoid1( ePopulation );
 Controls.SortCityName:SetVoid1( eName );
+Controls.SortReligion:SetVoid1( eReligion );
+Controls.SortFocus:SetVoid1( eFocus );
 Controls.SortStrength:SetVoid1( eStrength );
 Controls.SortProduction:SetVoid1( eProduction );
 Controls.SortFood:SetVoid1( eFood );
